@@ -14,7 +14,7 @@ on:
 
 env:
   NODE_VERSION: '20.x'
-  AZURE_STATIC_WEB_APP_NAME: 'tc'
+  AZURE_STATIC_WEB_APP_NAME: 'therapy-connect'
 
 jobs:
   build-and-deploy:
