@@ -25,8 +25,8 @@ This guide will walk you through deploying your UI to Azure Static Web Apps usin
 
 3. **Configure Basic Settings**
    - **Subscription**: Select your Azure subscription (`cfe8894e-9d2d-43d8-88fb-c345678cf905`)
-   - **Resource Group**: Create new or select existing (e.g., `rg-tc-prod`)
-   - **Name**: `tc` (must match the name in your workflow file)
+   - **Resource Group**: Create new or select existing (e.g., `rg-bh`)
+   - **Name**: `therapy-connect` (must match the name in your workflow file)
    - **Plan type**: Select "Free" for testing or "Standard" for production
    - **Region**: Choose closest to your users (e.g., "East US 2", "West Europe")
    - **Deployment source**: Select "Other" (we'll use GitHub Actions manually)
@@ -43,12 +43,12 @@ This guide will walk you through deploying your UI to Azure Static Web Apps usin
 az login
 
 # Create a resource group (if you don't have one)
-az group create --name rg-tc-prod --location eastus2
+az group create --name rg-bh --location eastus2
 
 # Create the Static Web App
 az staticwebapp create \
-  --name tc \
-  --resource-group rg-tc-prod \
+  --name therapy-connect \
+  --resource-group rg-bh \
   --location eastus2 \
   --sku Free
 ```
@@ -66,7 +66,7 @@ You need to create a Service Principal to allow GitHub Actions to authenticate w
 az ad sp create-for-rbac \
   --name "github-actions-tc" \
   --role contributor \
-  --scopes /subscriptions/cfe8894e-9d2d-43d8-88fb-c345678cf905/resourceGroups/rg-tc-prod
+  --scopes /subscriptions/cfe8894e-9d2d-43d8-88fb-c345678cf905/resourceGroups/rg-bh
 ```
 
 This command will output credentials like this:
@@ -146,7 +146,7 @@ Then update the workflow to create a .env file (uncomment and modify the 'Create
 The workflow file has been updated at [.github/workflows/deploy-ui.yml](.github/workflows/deploy-ui.yml).
 
 **Important**: Verify the `AZURE_STATIC_WEB_APP_NAME` matches your Azure resource:
-- Current value: `tc`
+- Current value: `therapy-connect`
 - This matches your Azure Static Web App name
 
 ---
@@ -185,11 +185,11 @@ You can also trigger deployment manually:
    Using Azure Portal:
    - Go to your Static Web App in Azure Portal
    - The URL is shown in the "Overview" page
-   - It will look like: `https://tc.azurestaticapps.net`
+   - It will look like: `https://therapy-connect.azurestaticapps.net`
    
    Using Azure CLI:
    ```bash
-   az staticwebapp show --name tc --resource-group rg-tc-prod --query "defaultHostname" -o tsv
+   az staticwebapp show --name therapy-connect --resource-group rg-bh --query "defaultHostname" -o tsv
    ```
 
 3. **Visit your deployed app**
