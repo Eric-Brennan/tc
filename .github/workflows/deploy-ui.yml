@@ -34,7 +34,7 @@ jobs:
 
     - name: 'Install Dependencies and Build'
       run: |
-        npm ci
+        npm install
         npm run build
         cp staticwebapp.config.json dist/
 
