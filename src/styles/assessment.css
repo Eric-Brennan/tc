@@ -1,0 +1,48 @@
+/* Custom radio button styles for assessment forms */
+.assessment-radio {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #000;
+  border-radius: 50%;
+  background-color: #fff;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease-in-out;
+  flex-shrink: 0;
+  margin: 0;
+  display: block;
+}
+
+.assessment-radio:hover {
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.1);
+}
+
+.assessment-radio:checked {
+  background-color: #fff;
+  border-color: #000;
+}
+
+.assessment-radio:checked::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background-color: #000;
+}
+
+.assessment-radio:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.assessment-radio:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}

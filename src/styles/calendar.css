@@ -1,0 +1,733 @@
+/* react-big-calendar base styles — imported here via CSS to avoid issues with dynamic JS imports */
+@import 'react-big-calendar/lib/css/react-big-calendar.css';
+
+/* Main calendar container */
+.calendar-container {
+  width: 100%;
+  height: 100%;
+}
+
+.calendar-container .rbc-calendar {
+  height: 100%;
+  font-family: inherit;
+}
+
+/* ===== MOBILE STYLES (class-based for simulation + media query for real mobile) ===== */
+/* Using .is-mobile class toggled by React state that detects both real mobile AND simulation */
+
+.calendar-container.is-mobile {
+  margin: 0;
+}
+
+.calendar-container.is-mobile .rbc-calendar {
+  border: none;
+  padding: 0;
+}
+
+.calendar-container.is-mobile .rbc-month-view,
+.calendar-container.is-mobile .rbc-time-view,
+.calendar-container.is-mobile .rbc-agenda-view {
+  padding: 0;
+}
+
+/* Max height for week/day time views on mobile - scrollable with current time visible */
+.calendar-container.is-mobile .rbc-time-view {
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-container.is-mobile .rbc-time-view .rbc-time-content {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.calendar-container.is-mobile .rbc-month-view {
+  border: none;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.calendar-container.is-mobile .rbc-header {
+  padding: 8px 2px;
+}
+
+.calendar-container.is-mobile .rbc-day-bg {
+  padding: 0;
+}
+
+/* Custom toolbar styling for mobile - full width bordered bar */
+.calendar-container.is-mobile .rbc-toolbar {
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  border-radius: 0;
+}
+
+.calendar-container.is-mobile .rbc-toolbar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 4px;
+  border: 1px solid var(--border);
+  border-left: none;
+  border-right: none;
+  background-color: var(--background);
+}
+
+.calendar-container.is-mobile .rbc-nav-btn {
+  background: transparent;
+  border: none;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+
+.calendar-container.is-mobile .rbc-nav-btn:hover {
+  opacity: 0.7;
+}
+
+.calendar-container.is-mobile .rbc-nav-btn:active {
+  opacity: 0.5;
+}
+
+.calendar-container.is-mobile .rbc-toolbar-label {
+  font-weight: 600;
+  font-size: 1rem;
+  text-align: center;
+  margin: 0;
+  flex: 1;
+}
+
+.calendar-container.is-mobile .rbc-toolbar-views {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background-color: color-mix(in srgb, var(--muted), transparent 70%);
+}
+
+.calendar-container.is-mobile .rbc-toolbar-views button {
+  flex: 1;
+  font-size: 0.75rem;
+  padding: 8px 4px;
+  border: 1px solid var(--border);
+  background-color: var(--background);
+  color: var(--foreground);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.calendar-container.is-mobile .rbc-toolbar-views button:hover {
+  background-color: var(--muted);
+}
+
+.calendar-container.is-mobile .rbc-toolbar-views button.rbc-active {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+/* Month view optimizations */
+.calendar-container.is-mobile .rbc-month-view .rbc-header {
+  padding: 6px 2px;
+  font-size: 0.7rem;
+}
+
+/* Show abbreviated day names */
+.calendar-container.is-mobile .rbc-header span {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Make date numbers smaller and reduce padding */
+.calendar-container.is-mobile .rbc-date-cell {
+  padding: 2px;
+  font-size: 0.7rem;
+}
+
+.calendar-container.is-mobile .rbc-date-cell a {
+  padding: 2px 4px;
+}
+
+/* Reduce row height */
+.calendar-container.is-mobile .rbc-month-row {
+  min-height: 52px;
+}
+
+/* MOBILE MONTH VIEW — custom event rendering via MobileMonthEvent component */
+.calendar-container.is-mobile .rbc-month-view .rbc-event {
+  font-size: 0.65rem;
+  padding: 0;
+  margin: 1px 2px;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  border-radius: 4px;
+  display: block;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.calendar-container.is-mobile .rbc-month-view .rbc-event-content {
+  display: block;
+  overflow: visible;
+}
+
+/* Single-event pill */
+.mobile-month-event-pill {
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  overflow: hidden;
+  min-height: 18px;
+}
+
+.mobile-month-event-pill-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.6rem;
+  line-height: 1.2;
+}
+
+/* Multi-event count badge */
+.mobile-month-event-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 0.6rem;
+  line-height: 1.2;
+  cursor: pointer;
+  min-height: 18px;
+  white-space: nowrap;
+}
+
+.mobile-month-event-badge:active,
+.mobile-month-event-pill:active {
+  opacity: 0.75;
+}
+
+/* Hide the "+N more" link on mobile month view since we handle overflow ourselves */
+.calendar-container.is-mobile .rbc-month-view .rbc-show-more {
+  display: none;
+}
+
+/* Style the event dots */
+.calendar-container.is-mobile .rbc-month-view .rbc-event-label {
+  display: none;
+}
+
+/* Make month view cells tappable - add visual feedback */
+.calendar-container.is-mobile .rbc-month-view .rbc-day-bg {
+  cursor: pointer;
+}
+
+.calendar-container.is-mobile .rbc-month-view .rbc-day-bg:active {
+  background-color: color-mix(in srgb, var(--muted), transparent 50%);
+}
+
+/* Show event count indicator */
+.calendar-container.is-mobile .rbc-row-content {
+  position: relative;
+}
+
+/* Week/Day view adjustments */
+.calendar-container.is-mobile .rbc-time-view .rbc-header {
+  padding: 8px 2px;
+  font-size: 0.75rem;
+  overflow: visible;
+}
+
+/* Hide the all-day events row on mobile — it takes space and clips the stacked header */
+.calendar-container.is-mobile .rbc-time-view .rbc-allday-cell {
+  display: none;
+}
+
+/* Remove default right margin on events container to reclaim space */
+.calendar-container.is-mobile .rbc-events-container {
+  margin-right: 0 !important;
+}
+
+/* Also hide the divider row that accompanies the all-day cell */
+.calendar-container.is-mobile .rbc-time-view .rbc-time-header-content > .rbc-row:last-child {
+  display: none;
+}
+
+/* Narrow time gutter column on mobile to match compact hour labels */
+.calendar-container.is-mobile .rbc-time-header-gutter {
+  min-width: 32px !important;
+  max-width: 32px !important;
+  width: 32px !important;
+}
+
+.calendar-container.is-mobile .rbc-time-gutter,
+.calendar-container.is-mobile .rbc-time-gutter .rbc-timeslot-group {
+  min-width: 32px;
+  max-width: 32px;
+  width: 32px;
+}
+
+/* Stacked day header: day name above date number */
+.calendar-container.is-mobile .rbc-time-view .rbc-header .rbc-header-stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.calendar-container.is-mobile .rbc-time-view .rbc-header .rbc-header-stacked .rbc-header-day {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  letter-spacing: 0.02em;
+}
+
+.calendar-container.is-mobile .rbc-time-view .rbc-header .rbc-header-stacked .rbc-header-date {
+  font-size: 0.8rem;
+}
+
+/* Keep normal event text in week/day/agenda views */
+.calendar-container.is-mobile .rbc-time-view .rbc-event,
+.calendar-container.is-mobile .rbc-agenda-view .rbc-event {
+  font-size: 0.7rem;
+  padding: 2px 4px;
+}
+
+.calendar-container.is-mobile .rbc-time-view .rbc-event-content,
+.calendar-container.is-mobile .rbc-agenda-view .rbc-event-content {
+  display: block;
+}
+
+.calendar-container.is-mobile .rbc-time-slot {
+  min-height: 30px;
+}
+
+.calendar-container.is-mobile .rbc-label {
+  font-size: 0.7rem;
+  padding: 0 2px;
+  text-align: center;
+  width: 32px;
+  min-width: 32px;
+}
+
+/* Agenda view is most mobile-friendly */
+.calendar-container.is-mobile .rbc-agenda-view {
+  font-size: 0.875rem;
+}
+
+.calendar-container.is-mobile .rbc-agenda-view table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+/* White border bottom on every agenda row */
+.calendar-container.is-mobile .rbc-agenda-view table.rbc-agenda-table tbody > tr {
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* Fixed column widths for aligned rows */
+.calendar-container.is-mobile .rbc-agenda-view table thead th:nth-child(1),
+.calendar-container.is-mobile .rbc-agenda-date-cell {
+  width: 68px;
+  min-width: 68px;
+  max-width: 68px;
+}
+
+.calendar-container.is-mobile .rbc-agenda-view table thead th:nth-child(2),
+.calendar-container.is-mobile .rbc-agenda-time-cell {
+  width: 80px;
+  min-width: 80px;
+  max-width: 80px;
+}
+
+/* Event cell takes the remaining space */
+.calendar-container.is-mobile .rbc-agenda-view table thead th:nth-child(3),
+.calendar-container.is-mobile .rbc-agenda-event-cell {
+  width: auto;
+}
+
+.calendar-container.is-mobile .rbc-agenda-date-cell {
+  padding: 8px 4px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+.calendar-container.is-mobile .rbc-agenda-time-cell {
+  padding: 8px 2px !important;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+.calendar-container.is-mobile .rbc-agenda-event-cell {
+  padding: 8px 4px;
+  font-size: 0.8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+/* Compact header row */
+.calendar-container.is-mobile .rbc-agenda-view table thead th {
+  padding: 6px 4px;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+/* Extra small - even smaller text for very narrow simulation */
+.calendar-container.is-mobile .rbc-month-view .rbc-header span {
+  font-size: 0.65rem;
+}
+
+.calendar-container.is-mobile .rbc-toolbar-views button {
+  font-size: 0.7rem;
+  padding: 6px 4px;
+}
+
+/* ===== DESKTOP STYLES ===== */
+/* These apply when .is-mobile is NOT present */
+
+/* Desktop agenda view — consistent rows with rowSpan-safe layout */
+.calendar-container:not(.is-mobile) .rbc-agenda-view {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 340px;
+}
+
+.calendar-container:not(.is-mobile) .rbc-agenda-view table.rbc-agenda-table {
+  width: 100%;
+  border: none;
+  border-spacing: 0;
+  border-collapse: collapse;
+}
+
+/* Override default #ddd borders — use theme border color */
+.calendar-container:not(.is-mobile) .rbc-agenda-view table.rbc-agenda-table tbody > tr + tr {
+  border-top: 1px solid var(--border) !important;
+}
+
+/* Reset all td borders, then add them back explicitly */
+.calendar-container:not(.is-mobile) .rbc-agenda-view table.rbc-agenda-table tbody > tr > td {
+  border-left: none !important;
+  border-right: none !important;
+}
+
+/* Time cell always gets a left border (handles both normal rows and rowSpan rows) */
+.calendar-container:not(.is-mobile) .rbc-agenda-view table.rbc-agenda-table .rbc-agenda-time-cell {
+  border-left: 1px solid var(--border) !important;
+}
+
+/* Event cell always gets a left border */
+.calendar-container:not(.is-mobile) .rbc-agenda-view table.rbc-agenda-table .rbc-agenda-event-cell {
+  border-left: 1px solid var(--border) !important;
+}
+
+/* Cell widths — guide the auto layout */
+.calendar-container:not(.is-mobile) .rbc-agenda-date-cell {
+  width: 120px;
+  min-width: 120px;
+  padding: 10px 8px;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+.calendar-container:not(.is-mobile) .rbc-agenda-time-cell {
+  width: 160px;
+  min-width: 160px;
+  padding: 10px 8px !important;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+.calendar-container:not(.is-mobile) .rbc-agenda-event-cell {
+  width: auto;
+  padding: 10px 8px;
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: top;
+}
+
+/* Agenda header row */
+.calendar-container:not(.is-mobile) .rbc-agenda-view table thead th {
+  padding: 10px 8px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted-foreground);
+  border-bottom: 2px solid var(--border);
+  text-align: left;
+  background-color: color-mix(in srgb, var(--muted), transparent 50%);
+}
+
+/* Header column widths — initial sizing before RBC JS sync */
+.calendar-container:not(.is-mobile) .rbc-agenda-view table thead th:nth-child(1) {
+  width: 120px;
+}
+
+.calendar-container:not(.is-mobile) .rbc-agenda-view table thead th:nth-child(2) {
+  width: 160px;
+}
+
+.calendar-container:not(.is-mobile) .rbc-toolbar {
+  padding: 12px 8px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.calendar-container:not(.is-mobile) .rbc-toolbar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.calendar-container:not(.is-mobile) .rbc-nav-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.calendar-container:not(.is-mobile) .rbc-nav-btn:hover {
+  background-color: var(--muted);
+}
+
+.calendar-container:not(.is-mobile) .rbc-toolbar button {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  background-color: var(--background);
+  color: var(--foreground);
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.calendar-container:not(.is-mobile) .rbc-toolbar button:hover {
+  background-color: var(--muted);
+}
+
+.calendar-container:not(.is-mobile) .rbc-toolbar button:active,
+.calendar-container:not(.is-mobile) .rbc-toolbar button.rbc-active {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+
+.calendar-container:not(.is-mobile) .rbc-toolbar-label {
+  font-weight: 600;
+  font-size: 1.125rem;
+  flex-grow: 1;
+  text-align: center;
+}
+
+.calendar-container:not(.is-mobile) .rbc-toolbar-views {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* ===== MONTH VIEW ===== */
+.calendar-container:not(.is-mobile) .rbc-month-view {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.calendar-container:not(.is-mobile) .rbc-month-view .rbc-header {
+  padding: 12px 4px;
+  font-weight: 600;
+  border-bottom: 2px solid var(--border);
+  background-color: color-mix(in srgb, var(--muted), transparent 50%);
+  text-align: center;
+}
+
+.calendar-container:not(.is-mobile) .rbc-month-view .rbc-header + .rbc-header {
+  border-left: 1px solid var(--border);
+}
+
+.calendar-container:not(.is-mobile) .rbc-month-row {
+  min-height: 120px;
+  border-bottom: 1px solid var(--border);
+}
+
+.calendar-container:not(.is-mobile) .rbc-month-row:last-child {
+  border-bottom: none;
+}
+
+/* Compact date numbers */
+.calendar-container:not(.is-mobile) .rbc-date-cell {
+  padding: 4px 6px;
+  font-size: 0.8125rem;
+}
+
+.calendar-container .rbc-day-bg + .rbc-day-bg {
+  border-left: 1px solid var(--border) !important;
+}
+
+.calendar-container:not(.is-mobile) .rbc-today {
+  background-color: #eaf6ff;
+}
+
+.calendar-container:not(.is-mobile) .rbc-off-range {
+  color: color-mix(in srgb, var(--muted-foreground), transparent 60%);
+}
+
+.calendar-container:not(.is-mobile) .rbc-off-range-bg {
+  background-color: color-mix(in srgb, var(--muted), transparent 70%);
+}
+
+.calendar-container:not(.is-mobile) .rbc-show-more {
+  background-color: transparent;
+  color: var(--primary);
+  font-size: 0.75rem;
+  padding: 2px 4px;
+  margin: 2px;
+  cursor: pointer;
+}
+
+.calendar-container:not(.is-mobile) .rbc-show-more:hover {
+  text-decoration: underline;
+}
+
+/* ===== EVENTS ===== */
+.calendar-container:not(.is-mobile) .rbc-event {
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  border: none;
+}
+
+.calendar-container:not(.is-mobile) .rbc-event:focus {
+  outline: 2px solid var(--ring);
+}
+
+.calendar-container:not(.is-mobile) .rbc-event-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Month view events — smaller for compact rows */
+.calendar-container:not(.is-mobile) .rbc-month-view .rbc-event {
+  font-size: 0.75rem;
+  padding: 1px 4px;
+  margin: 1px 2px;
+}
+
+/* ===== WEEK & DAY VIEW ===== */
+.calendar-container:not(.is-mobile) .rbc-time-view {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 528px;
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-container:not(.is-mobile) .rbc-time-header {
+  border-bottom: 2px solid var(--border);
+}
+
+.calendar-container:not(.is-mobile) .rbc-time-header-content {
+  border-left: 1px solid var(--border);
+}
+
+/* Hide the all-day events row on desktop */
+.calendar-container:not(.is-mobile) .rbc-time-view .rbc-allday-cell {
+  display: none;
+}
+
+/* Also hide the divider row that accompanies the all-day cell */
+.calendar-container:not(.is-mobile) .rbc-time-view .rbc-time-header-content > .rbc-row:last-child {
+  display: none;
+}
+
+.calendar-container:not(.is-mobile) .rbc-time-content {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.calendar-container:not(.is-mobile) .rbc-header {
+  padding: 12px 4px;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.calendar-container:not(.is-mobile) .rbc-header + .rbc-header {
+  border-left: 1px solid var(--border);
+}
+
+.calendar-container:not(.is-mobile) .rbc-time-content > * + * > * {
+  border-left: 1px solid var(--border);
+}
+
+.calendar-container:not(.is-mobile) .rbc-time-slot {
+  border-top: 1px solid color-mix(in srgb, var(--border), transparent 70%);
+}
+
+.calendar-container:not(.is-mobile) .rbc-current-time-indicator {
+  background-color: #74ad31;
+  height: 2px;
+}
+
+/* ===== SELECTED & HOVER STATES ===== */
+.calendar-container:not(.is-mobile) .rbc-selected {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.calendar-container:not(.is-mobile) .rbc-slot-selection {
+  background-color: color-mix(in srgb, var(--primary), transparent 80%);
+}
