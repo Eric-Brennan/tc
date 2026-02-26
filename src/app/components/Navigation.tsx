@@ -23,7 +23,7 @@ interface NavigationProps {
 export default function Navigation({ userType = "client", userName, userAvatar }: NavigationProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { themeSettings, toggleAndSaveDarkMode } = useThemeContext();
+  const { themeSettings, toggleAndSaveDarkMode, darkModeSupported } = useThemeContext();
   const { isClientMode, enterClientMode, exitClientMode } = useProfileMode();
   const { logout } = useAuth();
 
@@ -229,19 +229,21 @@ export default function Navigation({ userType = "client", userName, userAvatar }
                         <DropdownMenuSeparator />
                       </>
                     )}
-                    <DropdownMenuItem onClick={toggleAndSaveDarkMode}>
-                      {themeSettings.darkMode ? (
-                        <>
-                          <Sun className="w-4 h-4 mr-2" />
-                          Light Mode
-                        </>
-                      ) : (
-                        <>
-                          <Moon className="w-4 h-4 mr-2" />
-                          Dark Mode
-                        </>
-                      )}
-                    </DropdownMenuItem>
+                    {darkModeSupported && (
+                      <DropdownMenuItem onClick={toggleAndSaveDarkMode}>
+                        {themeSettings.darkMode ? (
+                          <>
+                            <Sun className="w-4 h-4 mr-2" />
+                            Light Mode
+                          </>
+                        ) : (
+                          <>
+                            <Moon className="w-4 h-4 mr-2" />
+                            Dark Mode
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout}>
                       <LogOut className="w-4 h-4 mr-2" />
@@ -310,19 +312,21 @@ export default function Navigation({ userType = "client", userName, userAvatar }
                         <DropdownMenuSeparator />
                       </>
                     )}
-                    <DropdownMenuItem onClick={toggleAndSaveDarkMode}>
-                      {themeSettings.darkMode ? (
-                        <>
-                          <Sun className="w-4 h-4 mr-2" />
-                          Light Mode
-                        </>
-                      ) : (
-                        <>
-                          <Moon className="w-4 h-4 mr-2" />
-                          Dark Mode
-                        </>
-                      )}
-                    </DropdownMenuItem>
+                    {darkModeSupported && (
+                      <DropdownMenuItem onClick={toggleAndSaveDarkMode}>
+                        {themeSettings.darkMode ? (
+                          <>
+                            <Sun className="w-4 h-4 mr-2" />
+                            Light Mode
+                          </>
+                        ) : (
+                          <>
+                            <Moon className="w-4 h-4 mr-2" />
+                            Dark Mode
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleLogout}>
                       <LogOut className="w-4 h-4 mr-2" />

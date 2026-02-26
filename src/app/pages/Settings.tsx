@@ -189,7 +189,7 @@ function ColorPairRow({
 }
 
 export default function Settings() {
-  const { themeSettings, updateColor, resetTheme, saveTheme, dispatch, toggleAndSaveDarkMode } = useThemeContext();
+  const { themeSettings, updateColor, resetTheme, saveTheme, dispatch, toggleAndSaveDarkMode, darkModeSupported } = useThemeContext();
   const [hasChanges, setHasChanges] = React.useState(false);
 
   // Snapshot of saved state to support discard
@@ -292,40 +292,55 @@ export default function Settings() {
             )}
 
             {/* Dark Mode Toggle */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  {themeSettings.darkMode ? (
-                    <Moon className="w-5 h-5" />
-                  ) : (
-                    <Sun className="w-5 h-5" />
-                  )}
-                  <CardTitle>Appearance</CardTitle>
-                </div>
-                <CardDescription>
-                  Toggle between light and dark mode. Each mode has its own set of colors.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="dark-mode">Dark Mode</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Enable dark mode for a more comfortable viewing experience in low-light environments
-                    </p>
+            {darkModeSupported ? (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    {themeSettings.darkMode ? (
+                      <Moon className="w-5 h-5" />
+                    ) : (
+                      <Sun className="w-5 h-5" />
+                    )}
+                    <CardTitle>Appearance</CardTitle>
                   </div>
-                  <Switch
-                    id="dark-mode"
-                    checked={themeSettings.darkMode}
-                    onCheckedChange={() => {
-                      toggleAndSaveDarkMode();
-                      // Update the saved snapshot to reflect dark mode change so discard doesn't revert it
-                      setSavedSnapshot(prev => ({ ...prev, darkMode: !themeSettings.darkMode }));
-                    }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+                  <CardDescription>
+                    Toggle between light and dark mode. Each mode has its own set of colors.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="dark-mode">Dark Mode</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Enable dark mode for a more comfortable viewing experience in low-light environments
+                      </p>
+                    </div>
+                    <Switch
+                      id="dark-mode"
+                      checked={themeSettings.darkMode}
+                      onCheckedChange={() => {
+                        toggleAndSaveDarkMode();
+                        // Update the saved snapshot to reflect dark mode change so discard doesn't revert it
+                        setSavedSnapshot(prev => ({ ...prev, darkMode: !themeSettings.darkMode }));
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <Sun className="w-5 h-5" />
+                    <CardTitle>Appearance</CardTitle>
+                  </div>
+                  <CardDescription>
+                    Dark mode is not available in this browser due to limited CSS support.
+                    For the full experience including dark mode, try Chrome, Firefox, or Edge.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            )}
 
             {/* Session Modality Colors */}
             <Card>
