@@ -1,0 +1,48 @@
+import type { Title } from "../shared/enums/Title";
+import type { Gender } from "../shared/enums/Gender";
+import type { Orientation } from "../shared/enums/Orientation";
+import type { SessionType } from "../shared/enums/SessionType";
+import type { AreaOfFocus } from "../shared/enums/AreaOfFocus";
+import type { Image } from "../shared/Image";
+import type { ContactDetails } from "../shared/ContactDetails";
+import type { ProfileLink } from "../shared/ProfileLink";
+import type { SpokenLanguage } from "../shared/SpokenLanguage";
+import type { Education } from "../shared/Education";
+import type { SessionRate } from "../shared/SessionRate";
+import type { TherapistType } from "./enums/TherapistType";
+import type { ClinicalApproach } from "./enums/ClinicalApproach";
+import type { GoverningBodyMembership } from "./GoverningBodyMembership";
+
+export interface TherapistProfile {
+  therapistProfileId: number;
+  userId: number;
+  title: Title;
+  firstName: string;
+  middleName: string | null;
+  lastName: string;
+  displayName: string | null;
+  profileImages: Image[];
+  dateOfBirth: Date | null;
+  gender: Gender;
+  orientation: Orientation;
+  contactDetails: ContactDetails | null;
+  profileLinks: ProfileLink[];
+  isInPerson: boolean;
+  isVideo: boolean;
+  isPhone: boolean;
+  isLiveChat: boolean;
+  isMessaging: boolean;
+  willDoCouples: boolean;
+  bio: string | null;
+  yearsOfExperience: number;
+  spokenLanguages: SpokenLanguage[];
+  educations: Education[];
+  therapistTypes: TherapistType[];
+  sessionTypes: SessionType[];
+  areasOfFocus: AreaOfFocus[];
+  clinicalApproaches: ClinicalApproach[];
+  governingBodyMemberships: GoverningBodyMembership[];
+  sessionRates: SessionRate[];
+  createdAt: Date;
+  updatedAt: Date;
+}

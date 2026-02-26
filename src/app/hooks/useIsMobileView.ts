@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React from 'react';
 
 const MOBILE_VIEW_KEY = 'therapyconnect-mobile-view';
 
@@ -10,7 +10,7 @@ const MOBILE_VIEW_KEY = 'therapyconnect-mobile-view';
  * render MobileViewToggle, like VideoSession).
  */
 export function useIsMobileView() {
-  const [isMobile, setIsMobile] = useState(() => {
+  const [isMobile, setIsMobile] = React.useState(() => {
     if (typeof window === 'undefined') return false;
     const simulated =
       document.documentElement.classList.contains('mobile-simulation') ||
@@ -18,7 +18,7 @@ export function useIsMobileView() {
     return window.innerWidth < 768 || simulated;
   });
 
-  useEffect(() => {
+  React.useEffect(() => {
     const checkMobile = () => {
       const simulated =
         document.documentElement.classList.contains('mobile-simulation') ||

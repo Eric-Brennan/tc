@@ -21,9 +21,13 @@ import {
   Package,
   CreditCard,
   Gift,
+  AlertTriangle,
 } from "lucide-react";
 import type { Therapist, SessionRate, AvailabilityWindow, ClientCourseBooking } from "../data/mockData";
 import type { ProBonoToken } from "../data/mockData";
+import { mockVideoSessions, mockMessages } from "../data/mockData";
+import type { Message } from "../data/mockData";
+import { persistMockData } from "../data/devPersistence";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 
@@ -166,7 +170,11 @@ export default function BookingModal({
   // "standard" = pay-per-session, "prepaid" = use a course credit, "probono" = use a pro bono token
   const [bookingMode, setBookingMode] = React.useState<"standard" | "prepaid" | "probono">("standard");
 
-  const sessionRates = therapist.sessionRates || [];
+  // Snapshot of booked session count — incremented after each booking to bust memos
+  const [bookingVersion, setBookingVersion] = React.useState(0);
+  const [isBooking, setIsBooking] = React.useState(false);
+
+  const sessionRates = (therapist.sessionRates || []).filter(r => !r.isSupervision);
   const windows = therapist.availabilityWindows || [];
 
   // ── Pro bono helpers ─────────────────────────────────────────
@@ -248,12 +256,21 @@ export default function BookingModal({
     return d;
   }, []);
 
+  const nowMinutes = React.useMemo(() => {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  }, []);
+
+  const todayStr = React.useMemo(() => toDateStr(today), [today]);
+
   const minWeekStart = React.useMemo(() => getMonday(new Date()), []);
 
   const maxSlotDate = React.useMemo(() => {
-    if (windows.length === 0) return addDays(today, 28);
+    const minMax = addDays(today, 28); // Always allow at least 4 weeks ahead
+    if (windows.length === 0) return minMax;
     const dates = windows.map((w) => new Date(w.date + "T12:00:00"));
-    return dates.reduce((max, d) => (d > max ? d : max), dates[0]);
+    const dataMax = dates.reduce((max, d) => (d > max ? d : max), dates[0]);
+    return dataMax > minMax ? dataMax : minMax;
   }, [windows, today]);
 
   const maxWeekStart = React.useMemo(
@@ -296,6 +313,75 @@ export default function BookingModal({
     return map;
   }, [windows]);
 
+  // ── Occupancy: sum booked session MINUTES per window ────────────
+  const getWindowBookedMinutes = React.useCallback(
+    (win: AvailabilityWindow): number => {
+      const wStart = timeToMinutes(win.startTime);
+      const wEnd = timeToMinutes(win.endTime);
+      const wDate = win.date;
+      return mockVideoSessions
+        .filter((s) => {
+          if (s.therapistId !== therapist.id) return false;
+          if (s.status === "cancelled") return false;
+          if (s.requiresApproval) return false; // don't count pending requests
+          const sDate = toDateStr(s.scheduledTime);
+          if (sDate !== wDate) return false;
+          const sMin = s.scheduledTime.getHours() * 60 + s.scheduledTime.getMinutes();
+          return sMin >= wStart && sMin < wEnd;
+        })
+        .reduce((sum, s) => sum + s.duration, 0);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [therapist.id, bookingVersion]
+  );
+
+  /** Is a given start-minute in a "request only" window (time-based occupancy)? */
+  const isRequestOnly = React.useCallback(
+    (dateStr: string, startMin: number): boolean => {
+      if (!selectedSessionRate) return false;
+      const dayWins = windowsByDate[dateStr] || [];
+      for (const win of dayWins) {
+        if (win.maxOccupancy === undefined) continue;
+        const wStart = timeToMinutes(win.startTime);
+        const wEnd = timeToMinutes(win.endTime);
+        if (startMin >= wStart && startMin < wEnd) {
+          const bookedMinutes = getWindowBookedMinutes(win);
+          // Would booking this session push total booked time over maxOccupancy?
+          if (bookedMinutes + selectedSessionRate.duration > win.maxOccupancy) return true;
+        }
+      }
+      return false;
+    },
+    [windowsByDate, getWindowBookedMinutes, selectedSessionRate]
+  );
+
+  /** Check if a proposed slot overlaps with any already-booked session */
+  const isSlotBooked = React.useCallback(
+    (dateStr: string, startMin: number, duration: number): boolean => {
+      const endMin = startMin + duration;
+      return mockVideoSessions.some((s) => {
+        if (s.therapistId !== therapist.id) return false;
+        if (s.status === "cancelled") return false;
+        if (s.requiresApproval) return false; // pending requests don't block slots
+        const sDate = toDateStr(s.scheduledTime);
+        if (sDate !== dateStr) return false;
+        const sStart =
+          s.scheduledTime.getHours() * 60 + s.scheduledTime.getMinutes();
+        const sEnd = sStart + s.duration;
+        // Two intervals overlap if one starts before the other ends
+        return startMin < sEnd && endMin > sStart;
+      });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [therapist.id, bookingVersion]
+  );
+
+  // Is the currently selected slot a "request only" slot?
+  const selectedSlotIsRequest = React.useMemo(() => {
+    if (!selectedDate || selectedStartMinutes === undefined) return false;
+    return isRequestOnly(selectedDate, selectedStartMinutes);
+  }, [selectedDate, selectedStartMinutes, isRequestOnly]);
+
   // ── Count total available start times for selected session type ──
 
   const availableCount = React.useMemo(() => {
@@ -303,35 +389,56 @@ export default function BookingModal({
     const cooldown = selectedSessionRate.cooldown || 0;
     let count = 0;
     for (const w of windows) {
+      // Skip past dates
+      const wDate = new Date(w.date + "T00:00:00");
+      if (wDate < today) continue;
+      if (!w.enabledRateIds.includes(selectedSessionRate.id)) continue;
       const wStart = timeToMinutes(w.startTime);
       const wEnd = timeToMinutes(w.endTime);
       const windowDuration = wEnd - wStart;
       if (windowDuration >= selectedSessionRate.duration) {
-        count += computeStartTimes(
+        const starts = computeStartTimes(
           wStart,
           wEnd,
           selectedSessionRate.duration,
           cooldown
-        ).length;
+        );
+        // Filter out already-booked slots, and for today skip past slots
+        for (const s of starts) {
+          if (w.date === todayStr && s <= nowMinutes) continue;
+          if (isSlotBooked(w.date, s, selectedSessionRate.duration)) continue;
+          count++;
+        }
       }
     }
     return count;
-  }, [selectedSessionRate, windows]);
+  }, [selectedSessionRate, windows, today, todayStr, nowMinutes, isSlotBooked]);
 
   // ── Step logic ────────────────────────────────────────────────
 
   const jumpToFirstAvailableWeek = React.useCallback(
     (rate: SessionRate) => {
-      const todayDate = new Date();
+      const now = new Date();
+      const todayDate = new Date(now);
       todayDate.setHours(0, 0, 0, 0);
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const todayDateStr = toDateStr(todayDate);
 
       const futureDates = windows
         .filter((w) => {
-          const d = new Date(w.date + "T12:00:00");
+          const d = new Date(w.date + "T00:00:00");
           if (d < todayDate) return false;
+          if (!w.enabledRateIds.includes(rate.id)) return false;
           const wStart = timeToMinutes(w.startTime);
           const wEnd = timeToMinutes(w.endTime);
-          return computeStartTimes(wStart, wEnd, rate.duration).length > 0;
+          const starts = computeStartTimes(wStart, wEnd, rate.duration);
+          // Filter out booked slots, and for today skip past slots
+          const available = starts.filter((s) => {
+            if (w.date === todayDateStr && s <= currentMinutes) return false;
+            if (isSlotBooked(w.date, s, rate.duration)) return false;
+            return true;
+          });
+          return available.length > 0;
         })
         .map((w) => w.date)
         .sort();
@@ -341,7 +448,7 @@ export default function BookingModal({
         setWeekStart(getMonday(firstDate));
       }
     },
-    [windows]
+    [windows, isSlotBooked]
   );
 
   const handleContinue = () => {
@@ -372,15 +479,94 @@ export default function BookingModal({
   };
 
   const handleConfirmBooking = () => {
-    if (activeCourseForRate) {
+    if (isBooking) return; // Guard against double-clicks
+    setIsBooking(true);
+
+    // Build the scheduled time from selected date + start minutes
+    const scheduledTime = selectedDate && selectedStartMinutes !== undefined
+      ? (() => {
+          const [y, mo, d] = selectedDate.split("-").map(Number);
+          const h = Math.floor(selectedStartMinutes / 60);
+          const m = selectedStartMinutes % 60;
+          return new Date(y, mo - 1, d, h, m, 0);
+        })()
+      : new Date();
+
+    // Create the VideoSession entry
+    const newSession = {
+      id: `vs-${Date.now()}`,
+      therapistId: therapist.id,
+      clientId: "c1", // current mock client
+      scheduledTime,
+      duration: selectedSessionRate!.duration,
+      status: "scheduled" as const,
+      sessionRateId: selectedSessionRate!.id,
+      modality: selectedSessionRate!.modality,
+      isPaid: selectedSlotIsRequest ? false : true, // Only mark as paid for non-request bookings
+      price: selectedSessionRate!.price,
+      requiresApproval: selectedSlotIsRequest ? true : undefined,
+    };
+    mockVideoSessions.push(newSession);
+    persistMockData(); // Persist immediately after adding to the array
+    setBookingVersion((v) => v + 1); // Bust memos that depend on booked sessions
+
+    if (selectedSlotIsRequest) {
+      // Format date and time for the message
+      const dateObj = scheduledTime;
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const formattedDate = `${dayNames[dateObj.getDay()]}, ${dateObj.getDate()} ${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+      const startTime = fmtMinutes(selectedStartMinutes!);
+      const endTime = fmtMinutes(selectedStartMinutes! + selectedSessionRate!.duration);
+      const formattedTime = `${startTime} – ${endTime}`;
+
+      // Send a session request message to the therapist
+      const requestMessage: Message = {
+        id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        senderId: "c1", // current mock client
+        receiverId: therapist.id,
+        content: `I'd like to request a session outside your usual occupancy. Could you accommodate this time?`,
+        timestamp: new Date(),
+        read: false,
+        sessionRequest: {
+          id: `sr-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          sessionId: newSession.id,
+          sessionType: selectedSessionRate!.title,
+          date: formattedDate,
+          time: formattedTime,
+          duration: selectedSessionRate!.duration,
+          price: selectedSessionRate!.price,
+          modality: selectedSessionRate!.modality,
+          status: 'pending',
+        },
+      };
+      mockMessages.push(requestMessage);
+      // Data already persisted above
       toast.success(
-        `Session booked! Using ${activeCourseForRate.courseTitle} (${activeCourseForRate.sessionsUsed + 1}/${activeCourseForRate.totalSessions} sessions used)`
+        "Session request sent! The therapist will review your request.",
+        { description: "You'll be notified once they respond." }
+      );
+    } else if (activeCourseForRate) {
+      // Increment session usage on the course
+      activeCourseForRate.sessionsUsed += 1;
+      if (activeCourseForRate.sessionsUsed >= activeCourseForRate.totalSessions) {
+        activeCourseForRate.status = "completed";
+      }
+      // Data already persisted above
+      toast.success(
+        `Session booked! Using ${activeCourseForRate.courseTitle} (${activeCourseForRate.sessionsUsed}/${activeCourseForRate.totalSessions} sessions used)`
       );
     } else if (activeProBonoForRate) {
+      // Mark the first available token as used
+      const tokenToUse = activeProBonoForRate[0];
+      tokenToUse.status = "used";
+      tokenToUse.usedAt = new Date();
+      // Data already persisted above
       toast.success(
         `Session booked! Gifted session used for ${selectedSessionRate!.title}`
       );
     } else {
+      // Data already persisted above
       toast.success("Booking confirmed! Redirecting to payment...");
     }
     setTimeout(() => {
@@ -390,6 +576,7 @@ export default function BookingModal({
       setSelectedStartMinutes(undefined);
       setSelectedSessionRate(null);
       setBookingMode("standard");
+      setIsBooking(false);
     }, 1500);
   };
 
@@ -400,6 +587,7 @@ export default function BookingModal({
     setSelectedStartMinutes(undefined);
     setSelectedSessionRate(null);
     setBookingMode("standard");
+    setIsBooking(false);
   };
 
   // ── Render helpers ────────────────────────────────────────────
@@ -764,8 +952,12 @@ export default function BookingModal({
             {/* Legend */}
             <div className="flex items-center gap-3 px-4 py-2 border-b text-xs text-muted-foreground shrink-0">
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded bg-emerald-50 border border-emerald-300" />
+                <div className="w-3 h-3 rounded bg-emerald-50 dark:bg-emerald-900/60 border border-emerald-300 dark:border-emerald-700" />
                 <span>Available</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-amber-50 dark:bg-amber-900/60 border border-amber-300 dark:border-amber-700" />
+                <span>Request Session</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 rounded bg-emerald-600 border border-emerald-600" />
@@ -864,6 +1056,8 @@ export default function BookingModal({
                   if (!isPast) {
                     const cooldown = selectedSessionRate.cooldown || 0;
                     for (const win of dayWindows) {
+                      // Only show slots for windows where the selected rate is enabled
+                      if (!win.enabledRateIds.includes(selectedSessionRate.id)) continue;
                       const wStart = timeToMinutes(win.startTime);
                       const wEnd = timeToMinutes(win.endTime);
                       const starts = computeStartTimes(
@@ -873,6 +1067,10 @@ export default function BookingModal({
                         cooldown
                       );
                       for (const s of starts) {
+                        // For today, skip slots that are already in the past
+                        if (isToday && s <= nowMinutes) continue;
+                        // Skip slots that overlap with already-booked sessions
+                        if (isSlotBooked(dateStr, s, selectedSessionRate.duration)) continue;
                         sessionSlots.push(s);
                       }
                     }
@@ -913,6 +1111,7 @@ export default function BookingModal({
                         const isSelected =
                           selectedDate === dateStr &&
                           selectedStartMinutes === startMin;
+                        const isRequest = isRequestOnly(dateStr, startMin);
 
                         return (
                           <button
@@ -923,14 +1122,19 @@ export default function BookingModal({
                             }}
                             className={`absolute left-0.5 right-0.5 rounded-md border transition-all z-[2] flex items-center justify-center gap-1 cursor-pointer ${
                               isSelected
-                                ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
-                                : "bg-emerald-50 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 text-foreground"
+                                ? isRequest
+                                  ? "bg-amber-600 border-amber-600 text-white shadow-sm"
+                                  : "bg-emerald-600 border-emerald-600 text-white shadow-sm"
+                                : isRequest
+                                ? "bg-amber-50 dark:bg-amber-900/60 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-800/70 hover:border-amber-400 dark:hover:border-amber-600 text-foreground"
+                                : "bg-emerald-50 dark:bg-emerald-900/60 border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-800/70 hover:border-emerald-400 dark:hover:border-emerald-600 text-foreground"
                             }`}
                             style={{ top, height }}
+                            title={isRequest ? "Occupancy full — this will be sent as a request" : undefined}
                           >
                             <span
                               className={`text-[10px] ${
-                                isSelected ? "" : "text-foreground/80"
+                                isSelected ? "" : isRequest ? "text-amber-800 dark:text-amber-100" : "text-foreground/80 dark:text-emerald-100"
                               }`}
                             >
                               {minutesToTime12(startMin)}
@@ -939,7 +1143,9 @@ export default function BookingModal({
                               className={`text-[10px] ${
                                 isSelected
                                   ? "text-white/70"
-                                  : "text-muted-foreground"
+                                  : isRequest
+                                  ? "text-amber-600 dark:text-amber-200/70"
+                                  : "text-muted-foreground dark:text-emerald-200/70"
                               }`}
                             >
                               – {minutesToTime12(endMin)}
@@ -959,37 +1165,46 @@ export default function BookingModal({
             </div>
 
             {/* Selected slot summary bar */}
-            {selectedDate && selectedStartMinutes !== undefined && (
-              <div className="px-4 py-2.5 border-t bg-primary/5 shrink-0">
-                <div className="flex items-center gap-3 text-sm">
-                  <Check className="w-4 h-4 text-primary" />
-                  <span className="font-medium">
-                    {(() => {
-                      const d = new Date(selectedDate + "T12:00:00");
-                      return d.toLocaleDateString("en-US", {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      });
-                    })()}
-                  </span>
-                  <span className="text-muted-foreground">at</span>
-                  <span className="font-medium">
-                    {minutesToTime12(selectedStartMinutes)}
-                  </span>
-                  <span className="text-muted-foreground">-</span>
-                  <span className="font-medium">
-                    {minutesToTime12(
-                      selectedStartMinutes + selectedSessionRate.duration
+            {selectedDate && selectedStartMinutes !== undefined && (() => {
+              const slotIsRequest = isRequestOnly(selectedDate, selectedStartMinutes);
+              return (
+                <div className={`px-4 py-2.5 border-t shrink-0 ${slotIsRequest ? "bg-amber-50 dark:bg-amber-950/20" : "bg-primary/5"}`}>
+                  <div className="flex items-center gap-3 text-sm flex-wrap">
+                    {slotIsRequest ? (
+                      <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    ) : (
+                      <Check className="w-4 h-4 text-primary" />
                     )}
-                  </span>
-                  <span className="text-muted-foreground">
-                    ({selectedSessionRate.duration} min{" "}
-                    {selectedSessionRate.title})
-                  </span>
+                    <span className="font-medium">
+                      {(() => {
+                        const d = new Date(selectedDate + "T12:00:00");
+                        return d.toLocaleDateString("en-US", {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                        });
+                      })()}
+                    </span>
+                    <span className="text-muted-foreground">at</span>
+                    <span className="font-medium">
+                      {minutesToTime12(selectedStartMinutes)}
+                    </span>
+                    <span className="text-muted-foreground">-</span>
+                    <span className="font-medium">
+                      {minutesToTime12(
+                        selectedStartMinutes + selectedSessionRate.duration
+                      )}
+                    </span>
+                    {slotIsRequest && (
+                      <Badge variant="outline" className="text-[10px] border-amber-300 bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700 gap-1 py-0">
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        Request Only
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
 
@@ -1139,9 +1354,29 @@ export default function BookingModal({
                 </CardContent>
               </Card>
 
+              {selectedSlotIsRequest && (
+                <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                        Session Request
+                      </p>
+                      <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                        This therapist's schedule is at max occupancy for this time slot.
+                        Your booking will be sent as a <strong>request</strong> for the therapist to approve.
+                        You will not be charged until the session is confirmed.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className={`p-4 rounded-lg ${isCreditBooking ? "bg-emerald-50 dark:bg-emerald-950/20" : "bg-muted"}`}>
                 <p className={`text-sm ${isCreditBooking ? "text-emerald-700 dark:text-emerald-300" : "text-muted-foreground"}`}>
-                  {activeCourseForRate
+                  {selectedSlotIsRequest
+                    ? "This session request will be sent to the therapist for approval. You'll be notified once they respond."
+                    : activeCourseForRate
                     ? "This session is covered by your prepaid course. No payment is required."
                     : activeProBonoForRate
                     ? "This is a complimentary session gifted by your therapist. No payment is required."
@@ -1167,12 +1402,25 @@ export default function BookingModal({
             </Button>
           ) : (
             <>
-              <Button variant="outline" onClick={handleBack}>
+              <Button variant="outline" onClick={handleBack} disabled={isBooking}>
                 Back
               </Button>
-              <Button onClick={handleConfirmBooking} className="gap-2">
-                <Check className="w-4 h-4" />
-                {isCreditBooking ? "Confirm Booking" : "Confirm & Pay"}
+              <Button
+                onClick={handleConfirmBooking}
+                disabled={isBooking}
+                className={`gap-2 ${selectedSlotIsRequest ? "bg-amber-600 hover:bg-amber-700" : ""}`}
+              >
+                {selectedSlotIsRequest ? (
+                  <>
+                    <AlertTriangle className="w-4 h-4" />
+                    Send Request
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    {isCreditBooking ? "Confirm Booking" : "Confirm & Pay"}
+                  </>
+                )}
               </Button>
             </>
           )}

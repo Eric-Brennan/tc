@@ -1,5 +1,6 @@
 // Mock data for the therapist-client platform
 
+// ── Enum imports (used by mock data values below) ───────────────
 import {
   Title,
   Gender,
@@ -13,151 +14,80 @@ import {
   LanguageProficiency,
   SessionType
 } from "../../types/enums";
-import type { TherapistProfile as FullTherapistProfile, GoverningBodyMembership } from "../../types";
+import type { TherapistProfile as FullTherapistProfile } from "../../types";
 
-export type UserType = 'client' | 'therapist';
+// ── Re-export all types from canonical /src/types/ locations ────
+// This preserves backward compatibility for existing imports from mockData.
+export type { UserType } from "../../types/shared/UserType";
+export type { Modality } from "../../types/shared/Modality";
+export type { ThemeSettings } from "../../types/shared/ThemeSettings";
+export type { User } from "../../types/shared/User";
+export type { SessionRate } from "../../types/shared/SessionRate";
+export type { ConnectionRequest } from "../../types/shared/ConnectionRequest";
+export type { SessionRequestData } from "../../types/shared/SessionRequestData";
+export type { Message } from "../../types/shared/Message";
+export type { VideoSession } from "../../types/shared/VideoSession";
+export type { ProBonoToken } from "../../types/shared/ProBonoToken";
+export type { Therapist } from "../../types/therapist/Therapist";
+export type { GoverningBodyMembership } from "../../types/therapist/GoverningBodyMembership";
+export type { SupervisionConnection } from "../../types/therapist/supervision/SupervisionConnection";
+export type { SupervisionSession } from "../../types/therapist/supervision/SupervisionSession";
+export type { AvailabilityWindow } from "../../types/therapist/scheduling/AvailabilityWindow";
+export type { TherapistBookmark } from "../../types/therapist/TherapistBookmark";
+export type { Post } from "../../types/therapist/Post";
+export type { Workshop } from "../../types/therapist/scheduling/Workshop";
+export type { CoursePackage } from "../../types/therapist/scheduling/CoursePackage";
+export type { SessionNote } from "../../types/therapist/SessionNote";
+export type { TherapistJournalEntry } from "../../types/therapist/journal/TherapistJournalEntry";
+export type { CpdEntry } from "../../types/therapist/journal/CpdEntry";
+export type { Client } from "../../types/client/Client";
+export type { ClientCourseBooking } from "../../types/client/ClientCourseBooking";
+export type { ClientNote } from "../../types/client/ClientNote";
+export type { MoodRating, PhysicalRating, SleepQuality, AnxietyLevel, StressLevel } from "../../types/client/journal";
+export type { JournalEntry } from "../../types/client/journal/JournalEntry";
+export type { AssessmentFrequency } from "../../types/client/assessment/AssessmentFrequency";
+export type { PHQ9Response } from "../../types/client/assessment/PHQ9Response";
+export type { GAD7Response } from "../../types/client/assessment/GAD7Response";
+export type { Assessment } from "../../types/client/assessment/Assessment";
 
-export interface User {
-  id: string;
-  type: UserType;
-  name: string;
-  email: string;
-  avatar: string;
-  phone?: string;
-  location?: string;
+// ── Import types needed for mock data arrays below ──────────────
+import type { UserType } from "../../types/shared/UserType";
+import type { ThemeSettings } from "../../types/shared/ThemeSettings";
+import type { User } from "../../types/shared/User";
+import type { SessionRate } from "../../types/shared/SessionRate";
+import type { ConnectionRequest } from "../../types/shared/ConnectionRequest";
+import type { SessionRequestData } from "../../types/shared/SessionRequestData";
+import type { Message } from "../../types/shared/Message";
+import type { VideoSession } from "../../types/shared/VideoSession";
+import type { ProBonoToken } from "../../types/shared/ProBonoToken";
+import type { Therapist } from "../../types/therapist/Therapist";
+import type { GoverningBodyMembership } from "../../types/therapist/GoverningBodyMembership";
+import type { SupervisionConnection } from "../../types/therapist/supervision/SupervisionConnection";
+import type { SupervisionSession } from "../../types/therapist/supervision/SupervisionSession";
+import type { AvailabilityWindow } from "../../types/therapist/scheduling/AvailabilityWindow";
+import type { TherapistBookmark } from "../../types/therapist/TherapistBookmark";
+import type { Post } from "../../types/therapist/Post";
+import type { Workshop } from "../../types/therapist/scheduling/Workshop";
+import type { CoursePackage } from "../../types/therapist/scheduling/CoursePackage";
+import type { SessionNote } from "../../types/therapist/SessionNote";
+import type { TherapistJournalEntry } from "../../types/therapist/journal/TherapistJournalEntry";
+import type { CpdEntry } from "../../types/therapist/journal/CpdEntry";
+import type { Client } from "../../types/client/Client";
+import type { ClientCourseBooking } from "../../types/client/ClientCourseBooking";
+import type { ClientNote } from "../../types/client/ClientNote";
+import type { MoodRating, PhysicalRating, SleepQuality, AnxietyLevel, StressLevel } from "../../types/client/journal";
+import type { JournalEntry } from "../../types/client/journal/JournalEntry";
+import type { AssessmentFrequency } from "../../types/client/assessment/AssessmentFrequency";
+import type { PHQ9Response } from "../../types/client/assessment/PHQ9Response";
+import type { GAD7Response } from "../../types/client/assessment/GAD7Response";
+import type { Assessment } from "../../types/client/assessment/Assessment";
+
+/** Convenience: does this therapist offer supervision? */
+export function therapistOffersSupervision(t: Therapist): boolean {
+  return t.sessionTypes?.includes(SessionType.Supervision) ?? false;
 }
 
-export interface SessionRate {
-  id: string;
-  title: string;
-  modality: "video" | "inPerson" | "text" | "phoneCall";
-  duration: number; // in minutes
-  price: number;
-  cooldown?: number; // cooldown period in minutes after session (for notes/refresh)
-}
 
-export interface Therapist extends User {
-  type: 'therapist';
-  credentials: string;
-  specializations: string[];
-  clinicalApproaches: string[];
-  yearsOfExperience: number;
-  education: string[];
-  bio: string;
-  hourlyRate: number;
-  availability: string;
-  bannerImage?: string;
-  sessionRates?: SessionRate[];
-  availabilityWindows?: AvailabilityWindow[];
-  governingBodyMemberships?: GoverningBodyMembership[];
-  coursePackages?: CoursePackage[];
-}
-
-export interface AvailabilityWindow {
-  date: string; // YYYY-MM-DD format
-  startTime: string; // "HH:MM" e.g. "09:00"
-  endTime: string; // "HH:MM" e.g. "12:00"
-  enabledRateIds: string[]; // which session types can be booked in this window
-}
-
-export interface Client extends User {
-  type: 'client';
-  areasOfFocus?: string[];
-  areasOfFocusDetails?: string; // Additional detailed notes about areas of concern
-  followedTherapists?: string[]; // Array of therapist IDs that the client follows
-}
-
-export interface ConnectionRequest {
-  id: string;
-  clientId: string;
-  therapistId: string;
-  status: 'pending' | 'accepted' | 'rejected';
-  message?: string;
-  createdAt: Date;
-}
-
-export interface Message {
-  id: string;
-  senderId: string;
-  receiverId: string;
-  content: string;
-  timestamp: Date;
-  read: boolean;
-}
-
-export interface Post {
-  id: string;
-  therapistId: string;
-  content: string;
-  link?: string;
-  timestamp: Date;
-  likes: string[]; // array of user IDs who liked
-}
-
-export interface VideoSession {
-  id: string;
-  therapistId: string;
-  clientId: string;
-  scheduledTime: Date;
-  duration: number; // in minutes
-  status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
-  sessionRateId?: string; // Reference to the session rate used
-  modality?: 'video' | 'inPerson' | 'text' | 'phoneCall'; // Legacy support
-  azureRoomId?: string;
-  isPaid?: boolean;
-  price?: number;
-}
-
-export interface Workshop {
-  id: string;
-  therapistId: string;
-  title: string;
-  description: string;
-  scheduledTime: Date;
-  duration: number; // in minutes
-  maxParticipants: number;
-  currentParticipants: number;
-  price: number;
-  isRegistered?: boolean;
-}
-
-// ── Course / Block Booking ──────────────────────────────────────
-
-export interface CoursePackage {
-  id: string;
-  therapistId: string;
-  title: string;                 // e.g. "EMDR Course"
-  description: string;           // short description of what the course covers
-  sessionRateId: string;         // which session rate type each session uses
-  totalSessions: number;         // e.g. 8
-  totalPrice: number;            // flat fee for the whole course, e.g. 1150
-  isActive: boolean;             // whether it's currently offered
-}
-
-export interface ClientCourseBooking {
-  id: string;
-  clientId: string;
-  therapistId: string;
-  coursePackageId: string;
-  courseTitle: string;            // denormalised for display
-  sessionRateId: string;         // which session rate each session uses
-  totalSessions: number;
-  sessionsUsed: number;
-  totalPrice: number;
-  purchaseDate: Date;
-  status: 'active' | 'completed' | 'cancelled';
-}
-
-export interface ProBonoToken {
-  id: string;
-  therapistId: string;
-  clientId: string;
-  sessionRateId: string;
-  sessionRateTitle: string; // denormalised for display
-  createdAt: Date;
-  usedAt?: Date;
-  status: 'available' | 'used' | 'expired';
-}
 
 // Mock therapists
 export const mockTherapists: Therapist[] = [
@@ -184,33 +114,32 @@ export const mockTherapists: Therapist[] = [
       { id: 'sr2', title: '50-min In-Person Session', modality: 'inPerson', duration: 50, price: 225, cooldown: 10 },
       { id: 'sr2b', title: '90-min In-Person Session', modality: 'inPerson', duration: 90, price: 350, cooldown: 15 },
       { id: 'sr3', title: 'Text Session (per week)', modality: 'text', duration: 60, price: 150 },
-      { id: 'sr4', title: '50-min Phone Session', modality: 'phoneCall', duration: 50, price: 165, cooldown: 10 }
+      { id: 'sr4', title: '50-min Phone Session', modality: 'phoneCall', duration: 50, price: 165, cooldown: 10 },
+      { id: 'sr-sv1', title: 'Supervision Session (Video)', modality: 'video', duration: 60, price: 150, cooldown: 10, isSupervision: true },
+      { id: 'sr-sv2', title: 'Supervision Session (In-Person)', modality: 'inPerson', duration: 60, price: 180, cooldown: 10, isSupervision: true }
     ],
     availabilityWindows: [
       // Week 1
-      { date: '2026-02-17', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr3', 'sr4'] },
+      { date: '2026-02-17', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr3', 'sr4', 'sr-sv1', 'sr-sv2'] },
       { date: '2026-02-17', startTime: '13:00', endTime: '16:00', enabledRateIds: ['sr1', 'sr2'] },
-      { date: '2026-02-18', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr3'] },
+      { date: '2026-02-18', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr3', 'sr-sv1'] },
       { date: '2026-02-18', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr1', 'sr4'] },
-      { date: '2026-02-19', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2'] },
+      { date: '2026-02-19', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr-sv1', 'sr-sv2'] },
       { date: '2026-02-19', startTime: '14:00', endTime: '16:00', enabledRateIds: ['sr1', 'sr2', 'sr3', 'sr4'] },
-      { date: '2026-02-20', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr3'] },
+      { date: '2026-02-20', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr3', 'sr-sv1'] },
       { date: '2026-02-20', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr1', 'sr2'] },
-      { date: '2026-02-21', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1'] },
+      { date: '2026-02-21', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr-sv1'] },
       { date: '2026-02-21', startTime: '14:00', endTime: '16:00', enabledRateIds: ['sr1', 'sr3'] },
       // Week 2
-      { date: '2026-02-23', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr3'] },
+      { date: '2026-02-23', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr3', 'sr-sv1'] },
       { date: '2026-02-23', startTime: '13:00', endTime: '16:00', enabledRateIds: ['sr1', 'sr2'] },
-      { date: '2026-02-24', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr3', 'sr4'] },
+      { date: '2026-02-24', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr3', 'sr-sv1'] },
       { date: '2026-02-24', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr1', 'sr2'] },
-      { date: '2026-02-25', startTime: '10:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr4'] },
-      { date: '2026-02-25', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr1', 'sr2'] },
-      { date: '2026-02-26', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2'] },
-      { date: '2026-02-26', startTime: '14:00', endTime: '16:00', enabledRateIds: ['sr1', 'sr3', 'sr4'] },
-      { date: '2026-02-27', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr1', 'sr2'] },
+      { date: '2026-02-25', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr-sv1', 'sr-sv2'] },
+      { date: '2026-02-25', startTime: '14:00', endTime: '16:00', enabledRateIds: ['sr1', 'sr2', 'sr3', 'sr4'] },
+      { date: '2026-02-26', startTime: '09:00', endTime: '17:00', enabledRateIds: ['sr1', 'sr2', 'sr3', 'sr4', 'sr-sv1', 'sr-sv2'], maxOccupancy: 420 },
+      { date: '2026-02-27', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr4'] },
       { date: '2026-02-27', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr1', 'sr2'] },
-      { date: '2026-02-28', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2'] },
-      { date: '2026-02-28', startTime: '14:00', endTime: '16:00', enabledRateIds: ['sr1', 'sr3'] },
       // Week 3
       { date: '2026-03-02', startTime: '09:00', endTime: '12:00', enabledRateIds: ['sr1', 'sr2', 'sr3'] },
       { date: '2026-03-02', startTime: '14:00', endTime: '16:00', enabledRateIds: ['sr1', 'sr2'] },
@@ -258,7 +187,9 @@ export const mockTherapists: Therapist[] = [
         totalPrice: 680,
         isActive: false
       }
-    ]
+    ],
+    sessionTypes: [SessionType.Counselling, SessionType.Psychotherapy, SessionType.Supervision],
+    supervisionBio: 'I provide clinical supervision for therapists working with anxiety, depression, and trauma. My supervision style is integrative, drawing on CBT, EMDR, and attachment theory frameworks.'
   },
   {
     id: 't2',
@@ -281,23 +212,47 @@ export const mockTherapists: Therapist[] = [
       { id: 'sr5', title: 'Video Session', modality: 'video', duration: 60, price: 175, cooldown: 10 },
       { id: 'sr6', title: 'In-Person Session', modality: 'inPerson', duration: 60, price: 200, cooldown: 10 },
       { id: 'sr7', title: 'Text Session', modality: 'text', duration: 60, price: 125 },
-      { id: 'sr8', title: 'Phone Call Session', modality: 'phoneCall', duration: 60, price: 150, cooldown: 10 }
+      { id: 'sr8', title: 'Phone Call Session', modality: 'phoneCall', duration: 60, price: 150, cooldown: 10 },
+      { id: 'sr-sv3', title: 'Supervision Session (Video)', modality: 'video', duration: 60, price: 120, cooldown: 10, isSupervision: true },
+      { id: 'sr-sv4', title: 'Supervision Session (Phone)', modality: 'phoneCall', duration: 60, price: 100, cooldown: 10, isSupervision: true }
     ],
     availabilityWindows: [
-      { date: '2026-02-17', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr7', 'sr8'] },
-      { date: '2026-02-17', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6'] },
-      { date: '2026-02-18', startTime: '10:00', endTime: '12:00', enabledRateIds: ['sr5', 'sr6'] },
+      { date: '2026-02-17', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr7', 'sr8', 'sr-sv3', 'sr-sv4'] },
+      { date: '2026-02-17', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3'] },
+      { date: '2026-02-18', startTime: '10:00', endTime: '12:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3'] },
       { date: '2026-02-18', startTime: '14:00', endTime: '16:00', enabledRateIds: ['sr5', 'sr6'] },
-      { date: '2026-02-19', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr7'] },
+      { date: '2026-02-19', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr7', 'sr-sv3', 'sr-sv4'] },
       { date: '2026-02-19', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6'] },
-      { date: '2026-02-20', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6'] },
-      { date: '2026-02-20', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6', 'sr8'] },
+      { date: '2026-02-20', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3'] },
+      { date: '2026-02-20', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6', 'sr8', 'sr-sv3'] },
       { date: '2026-02-21', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6'] },
-      { date: '2026-02-21', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6'] },
+      { date: '2026-02-21', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3', 'sr-sv4'] },
+      // Week 2
+      { date: '2026-02-24', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr7', 'sr-sv3', 'sr-sv4'] },
+      { date: '2026-02-24', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3'] },
+      { date: '2026-02-25', startTime: '10:00', endTime: '12:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3'] },
+      { date: '2026-02-25', startTime: '14:00', endTime: '16:00', enabledRateIds: ['sr5', 'sr6'] },
+      { date: '2026-02-26', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr7', 'sr-sv3', 'sr-sv4'] },
+      { date: '2026-02-26', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6'] },
+      { date: '2026-02-27', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3'] },
+      { date: '2026-02-27', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6', 'sr8', 'sr-sv3'] },
+      { date: '2026-02-28', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3'] },
+      { date: '2026-02-28', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv4'] },
+      // Week 3
+      { date: '2026-03-03', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3', 'sr-sv4'] },
+      { date: '2026-03-03', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3'] },
+      { date: '2026-03-04', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3'] },
+      { date: '2026-03-04', startTime: '14:00', endTime: '16:00', enabledRateIds: ['sr5', 'sr6'] },
+      { date: '2026-03-05', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3', 'sr-sv4'] },
+      { date: '2026-03-05', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6'] },
+      { date: '2026-03-06', startTime: '10:00', endTime: '13:00', enabledRateIds: ['sr5', 'sr6', 'sr-sv3'] },
+      { date: '2026-03-06', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr5', 'sr6', 'sr8', 'sr-sv3'] },
     ],
     governingBodyMemberships: [
-      { id: 'gm3', governingBody: GoverningBody.AAMFT, membershipLevel: MembershipLevel.ClinicalFellow, membershipNumber: 'AAMFT-345678', yearObtained: 2018 }
-    ]
+      { id: 'gm3', governingBody: GoverningBody.AAMFT, membershipLevel: MembershipLevel.AAMFTClinical, membershipNumber: 'AAMFT-345678', yearObtained: 2018 }
+    ],
+    sessionTypes: [SessionType.Counselling, SessionType.Couples, SessionType.Supervision],
+    supervisionBio: 'I offer supervision for therapists working with couples, families, and relationship dynamics. I draw on EFT and narrative approaches to help supervisees develop their clinical voice.'
   },
   {
     id: 't3',
@@ -336,7 +291,8 @@ export const mockTherapists: Therapist[] = [
     ],
     governingBodyMemberships: [
       { id: 'gm4', governingBody: GoverningBody.APA, membershipLevel: MembershipLevel.APAMember, membershipNumber: 'APA-567890', yearObtained: 2016 }
-    ]
+    ],
+    sessionTypes: [SessionType.Counselling, SessionType.Psychotherapy]
   },
   {
     id: 't4',
@@ -359,28 +315,51 @@ export const mockTherapists: Therapist[] = [
       { id: 'sr13', title: 'Video Session', modality: 'video', duration: 60, price: 165, cooldown: 10 },
       { id: 'sr14', title: 'In-Person Session', modality: 'inPerson', duration: 60, price: 190, cooldown: 10 },
       { id: 'sr15', title: 'Text Session', modality: 'text', duration: 60, price: 110 },
-      { id: 'sr16', title: 'Phone Call Session', modality: 'phoneCall', duration: 60, price: 140, cooldown: 10 }
+      { id: 'sr16', title: 'Phone Call Session', modality: 'phoneCall', duration: 60, price: 140, cooldown: 10 },
+      { id: 'sr-sv5', title: 'Supervision Session (Video)', modality: 'video', duration: 60, price: 110, cooldown: 10, isSupervision: true }
     ],
     availabilityWindows: [
-      { date: '2026-02-17', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14', 'sr15'] },
-      { date: '2026-02-17', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14'] },
+      { date: '2026-02-17', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14', 'sr15', 'sr-sv5'] },
+      { date: '2026-02-17', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14', 'sr-sv5'] },
       { date: '2026-02-18', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14'] },
       { date: '2026-02-18', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14', 'sr16'] },
       { date: '2026-02-19', startTime: '11:00', endTime: '12:00', enabledRateIds: ['sr13', 'sr14'] },
-      { date: '2026-02-19', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14'] },
+      { date: '2026-02-19', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14', 'sr-sv5'] },
       { date: '2026-02-20', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14'] },
-      { date: '2026-02-20', startTime: '14:00', endTime: '18:00', enabledRateIds: ['sr13', 'sr14', 'sr15'] },
+      { date: '2026-02-20', startTime: '14:00', endTime: '18:00', enabledRateIds: ['sr13', 'sr14', 'sr15', 'sr-sv5'] },
       { date: '2026-02-21', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14'] },
-      { date: '2026-02-21', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14'] },
+      { date: '2026-02-21', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14', 'sr-sv5'] },
+      // Week 2
+      { date: '2026-02-24', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14', 'sr15', 'sr-sv5'] },
+      { date: '2026-02-24', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14', 'sr-sv5'] },
+      { date: '2026-02-25', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14'] },
+      { date: '2026-02-25', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14', 'sr16'] },
+      { date: '2026-02-26', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14', 'sr-sv5'] },
+      { date: '2026-02-26', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14', 'sr-sv5'] },
+      { date: '2026-02-27', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14'] },
+      { date: '2026-02-27', startTime: '14:00', endTime: '18:00', enabledRateIds: ['sr13', 'sr14', 'sr15', 'sr-sv5'] },
+      { date: '2026-02-28', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14', 'sr-sv5'] },
+      // Week 3
+      { date: '2026-03-03', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14', 'sr-sv5'] },
+      { date: '2026-03-03', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14', 'sr-sv5'] },
+      { date: '2026-03-04', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14'] },
+      { date: '2026-03-04', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14', 'sr16'] },
+      { date: '2026-03-05', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14', 'sr-sv5'] },
+      { date: '2026-03-05', startTime: '14:00', endTime: '17:00', enabledRateIds: ['sr13', 'sr14', 'sr-sv5'] },
+      { date: '2026-03-06', startTime: '11:00', endTime: '13:00', enabledRateIds: ['sr13', 'sr14'] },
+      { date: '2026-03-06', startTime: '14:00', endTime: '18:00', enabledRateIds: ['sr13', 'sr14', 'sr15', 'sr-sv5'] },
     ],
     governingBodyMemberships: [
       { id: 'gm5', governingBody: GoverningBody.NASW, membershipLevel: MembershipLevel.Member, membershipNumber: 'NASW-901234', yearObtained: 2011 }
-    ]
+    ],
+    sessionTypes: [SessionType.Counselling, SessionType.Supervision],
+    supervisionBio: 'With 15 years of clinical experience, I supervise therapists specialising in substance abuse, grief, and men\'s issues. My approach is grounded in motivational interviewing and person-centred frameworks.'
   }
 ];
 
 // ---- Test client switcher (localStorage-backed) ----
 const TEST_CLIENT_KEY = 'besthelp_test_client';
+const TEST_THERAPIST_KEY = 'besthelp_test_therapist';
 
 const testClientProfiles: Record<string, Client> = {
   c1: {
@@ -436,7 +415,35 @@ export function getCurrentTestClientId(): string {
 // Current user (for demo purposes, can be toggled via test switcher)
 export const mockCurrentClient: Client = testClientProfiles[getStoredClientId()] ?? testClientProfiles['c1'];
 
-export const mockCurrentTherapist: Therapist = mockTherapists[0];
+// ---- Test therapist switcher (localStorage-backed) ----
+
+function getStoredTherapistId(): string {
+  try { return localStorage.getItem(TEST_THERAPIST_KEY) || 't1'; } catch { return 't1'; }
+}
+
+export function getTestTherapistIds(): string[] {
+  return mockTherapists.map(t => t.id);
+}
+
+export function getTestTherapistLabel(id: string): string {
+  const t = mockTherapists.find(th => th.id === id);
+  return t ? t.name : id;
+}
+
+export function getTestTherapistAvatar(id: string): string {
+  return mockTherapists.find(th => th.id === id)?.avatar ?? '';
+}
+
+export function switchTestTherapist(id: string) {
+  localStorage.setItem(TEST_THERAPIST_KEY, id);
+  window.location.reload();
+}
+
+export function getCurrentTestTherapistId(): string {
+  return getStoredTherapistId();
+}
+
+export const mockCurrentTherapist: Therapist = mockTherapists.find(t => t.id === getStoredTherapistId()) ?? mockTherapists[0];
 
 // Extended profile data for current therapist with full TherapistProfile structure
 export const mockCurrentTherapistExtended: Partial<FullTherapistProfile> = {
@@ -492,7 +499,7 @@ export const mockCurrentTherapistExtended: Partial<FullTherapistProfile> = {
     }
   ],
   therapistTypes: [TherapistType.LIB, TherapistType.NRG],
-  sessionTypes: [SessionType.Counselling, SessionType.Psychotherapy],
+  sessionTypes: [SessionType.Counselling, SessionType.Psychotherapy, SessionType.Supervision],
   areasOfFocus: [AreaOfFocus.AX, AreaOfFocus.DEP, AreaOfFocus.TRA, AreaOfFocus.PTS],
   clinicalApproaches: [ClinicalApproach.CBT, ClinicalApproach.EMDR, ClinicalApproach.MIT],
   governingBodyMemberships: [
@@ -581,6 +588,31 @@ export const mockConnections: ConnectionRequest[] = [
     status: 'pending',
     message: 'Hello Dr. Johnson, I\'ve been experiencing significant anxiety and low self-esteem during a career transition. I\'d love to discuss how CBT could help me.',
     createdAt: new Date('2026-02-20')
+  },
+  // ── James Patterson (t4) client connections ──
+  {
+    id: 'conn8',
+    clientId: 'c2',
+    therapistId: 't4',
+    status: 'accepted',
+    message: 'Hi James, I\'m dealing with the loss of a family member and could really use some support.',
+    createdAt: new Date('2026-01-22')
+  },
+  {
+    id: 'conn9',
+    clientId: 'c3',
+    therapistId: 't4',
+    status: 'accepted',
+    message: 'Hello Mr. Patterson, I\'m going through a career transition and struggling with substance-related coping. I\'d appreciate your help.',
+    createdAt: new Date('2026-02-02')
+  },
+  {
+    id: 'conn10',
+    clientId: 'c5',
+    therapistId: 't4',
+    status: 'pending',
+    message: 'Hi James, I\'ve been recommended to you for help with work stress and burnout. Would love to connect.',
+    createdAt: new Date('2026-02-18')
   }
 ];
 
@@ -780,7 +812,124 @@ export const mockMessages: Message[] = [
     content: 'I\'ve been having some anxiety about our first session. Is it normal to feel nervous?',
     timestamp: new Date('2026-02-15T20:30:00'),
     read: false
+  },
+  {
+    id: 'm10',
+    senderId: 't1',
+    receiverId: 'c1',
+    content: 'Here\'s that article on grounding techniques I mentioned — really worth a read.',
+    timestamp: new Date('2026-02-16T10:00:00'),
+    read: false,
+    bookmark: {
+      title: '5-4-3-2-1 Grounding Technique for Anxiety',
+      url: 'https://www.therapistaid.com/therapy-article/grounding-techniques'
+    }
+  },
+  // ── James Patterson (t4) messages ──
+  {
+    id: 'm-t4-1',
+    senderId: 'c2',
+    receiverId: 't4',
+    content: 'Hi James, thank you for accepting my request. I\'m a bit nervous about starting therapy.',
+    timestamp: new Date('2026-01-24T10:00:00'),
+    read: true
+  },
+  {
+    id: 'm-t4-2',
+    senderId: 't4',
+    receiverId: 'c2',
+    content: 'Hi Jordan, that\'s completely normal. This is a safe space and we\'ll go at your pace. Our first session will be about getting to know each other and understanding what you\'d like to work on.',
+    timestamp: new Date('2026-01-24T10:30:00'),
+    read: true
+  },
+  {
+    id: 'm-t4-3',
+    senderId: 'c2',
+    receiverId: 't4',
+    content: 'That sounds good. I\'ve been struggling since my father passed. Some days are harder than others.',
+    timestamp: new Date('2026-01-24T11:00:00'),
+    read: true
+  },
+  {
+    id: 'm-t4-4',
+    senderId: 't4',
+    receiverId: 'c2',
+    content: 'I\'m sorry for your loss. Grief is a deeply personal journey. We\'ll work through it together. I\'d recommend journaling your thoughts before our session — even bullet points can help.',
+    timestamp: new Date('2026-01-24T11:15:00'),
+    read: true
+  },
+  {
+    id: 'm-t4-5',
+    senderId: 'c2',
+    receiverId: 't4',
+    content: 'I tried the journaling this week. It was harder than I expected but I think it helped a little.',
+    timestamp: new Date('2026-02-12T09:30:00'),
+    read: true
+  },
+  {
+    id: 'm-t4-6',
+    senderId: 't4',
+    receiverId: 'c2',
+    content: 'That\'s really brave. The fact that it felt hard shows you\'re engaging with the emotions rather than avoiding them. Let\'s talk about what came up in our next session.',
+    timestamp: new Date('2026-02-12T10:00:00'),
+    read: false
+  },
+  {
+    id: 'm-t4-7',
+    senderId: 'c3',
+    receiverId: 't4',
+    content: 'Hi James, I wanted to check in. I\'ve been thinking a lot about our conversation around motivational interviewing.',
+    timestamp: new Date('2026-02-14T14:00:00'),
+    read: true
+  },
+  {
+    id: 'm-t4-8',
+    senderId: 't4',
+    receiverId: 'c3',
+    content: 'Hi Sam, glad to hear you\'ve been reflecting on it. What came up for you?',
+    timestamp: new Date('2026-02-14T14:30:00'),
+    read: true
+  },
+  {
+    id: 'm-t4-9',
+    senderId: 'c3',
+    receiverId: 't4',
+    content: 'I realised I\'ve been telling myself I *should* change rather than exploring whether I actually want to. It was a real lightbulb moment.',
+    timestamp: new Date('2026-02-14T15:00:00'),
+    read: false
   }
+];
+
+// ── Therapist Bookmarks ──────────────────────────────────────────
+export const mockTherapistBookmarks: TherapistBookmark[] = [
+  { id: 'bk1', therapistId: 't1', title: '5-4-3-2-1 Grounding Technique for Anxiety', url: 'https://www.therapistaid.com/therapy-article/grounding-techniques', createdAt: new Date('2026-01-10T09:00:00') },
+  { id: 'bk2', therapistId: 't1', title: 'Understanding the CBT Model', url: 'https://www.apa.org/ptsd-guideline/patients-and-families/cognitive-behavioral', createdAt: new Date('2026-01-15T14:00:00') },
+  { id: 'bk3', therapistId: 't1', title: 'Headspace – Guided Meditation App', url: 'https://www.headspace.com', createdAt: new Date('2026-01-20T11:30:00') },
+  { id: 'bk4', therapistId: 't1', title: 'Sleep Hygiene Tips – NHS', url: 'https://www.nhs.uk/live-well/sleep-and-tiredness/how-to-get-to-sleep/', createdAt: new Date('2026-02-01T16:00:00') },
+  { id: 'bk5', therapistId: 't1', title: 'Brené Brown: The Power of Vulnerability (TED Talk)', url: 'https://www.ted.com/talks/brene_brown_the_power_of_vulnerability', createdAt: new Date('2026-02-05T10:00:00') },
+  { id: 'bk6', therapistId: 't1', title: 'Dialectical Behavior Therapy Skills Workbook', url: 'https://www.dbtselfhelp.com', createdAt: new Date('2026-02-08T13:00:00') },
+  { id: 'bk9', therapistId: 't1', title: 'Journaling for Mental Health – PsychCentral', url: 'https://psychcentral.com/blog/ready-set-journal-64-journaling-prompts-for-self-discovery', createdAt: new Date('2026-02-09T08:30:00') },
+  { id: 'bk10', therapistId: 't1', title: 'How Relationships Affect Your Health', url: 'https://www.gottman.com/blog/how-relationships-affect-health/', createdAt: new Date('2026-02-10T12:00:00') },
+  { id: 'bk11', therapistId: 't1', title: 'The Neuroscience of Anxiety – Harvard Health', url: 'https://www.health.harvard.edu/blog/understanding-the-stress-response', createdAt: new Date('2026-02-10T15:00:00') },
+  { id: 'bk12', therapistId: 't1', title: 'Nature Therapy: The Mental Health Benefits of Walking Outdoors', url: 'https://www.mind.org.uk/information-support/tips-for-everyday-living/nature-and-mental-health/', createdAt: new Date('2026-02-11T09:00:00') },
+  { id: 'bk13', therapistId: 't1', title: 'Yoga and Mental Health – NHS Evidence Review', url: 'https://www.nhs.uk/mental-health/self-help/tips-and-support/mindfulness/', createdAt: new Date('2026-02-12T10:30:00') },
+  { id: 'bk14', therapistId: 't1', title: 'Supporting a Child Through Anxiety – Young Minds', url: 'https://www.youngminds.org.uk/parent/parents-a-z-mental-health-guide/anxiety/', createdAt: new Date('2026-02-13T14:00:00') },
+  { id: 'bk15', therapistId: 't1', title: 'Understanding Grief: Stages and Coping Strategies', url: 'https://www.cruse.org.uk/understanding-grief/', createdAt: new Date('2026-02-14T11:00:00') },
+  { id: 'bk16', therapistId: 't1', title: 'Nutrition and Mental Health – Food & Mood Centre', url: 'https://foodandmoodcentre.com.au/resources/', createdAt: new Date('2026-02-15T09:00:00') },
+  { id: 'bk17', therapistId: 't1', title: 'Art Therapy Exercises You Can Try at Home', url: 'https://www.baat.org/About-Art-Therapy', createdAt: new Date('2026-02-16T13:30:00') },
+  { id: 'bk18', therapistId: 't1', title: 'Burnout: Signs, Symptoms and Recovery – Mind', url: 'https://www.mind.org.uk/information-support/types-of-mental-health-problems/stress/', createdAt: new Date('2026-02-17T10:00:00') },
+  { id: 'bk19', therapistId: 't1', title: 'Building Resilience: A Practical Guide', url: 'https://www.apa.org/topics/resilience/building-your-resilience', createdAt: new Date('2026-02-18T08:00:00') },
+  { id: 'bk20', therapistId: 't1', title: 'Social Connection and Loneliness – Mental Health Foundation', url: 'https://www.mentalhealth.org.uk/explore-mental-health/a-z-topics/loneliness', createdAt: new Date('2026-02-19T11:30:00') },
+  { id: 'bk21', therapistId: 't1', title: 'Ocean Sounds for Relaxation – Calm', url: 'https://www.calm.com/blog/ocean-meditation', createdAt: new Date('2026-02-19T16:00:00') },
+  { id: 'bk22', therapistId: 't1', title: 'Mindful Breathing: A Step-by-Step Guide', url: 'https://www.mindful.org/how-to-meditate/', createdAt: new Date('2026-02-20T09:00:00') },
+  { id: 'bk7', therapistId: 't2', title: 'Gottman: Softening Startup', url: 'https://www.gottman.com/blog/softening-startup/', createdAt: new Date('2026-01-12T09:00:00') },
+  { id: 'bk8', therapistId: 't2', title: 'The 5 Love Languages Quiz', url: 'https://www.5lovelanguages.com/quizzes/love-language', createdAt: new Date('2026-01-18T11:00:00') },
+  // ── James Patterson (t4) bookmarks ──
+  { id: 'bk-t4-1', therapistId: 't4', title: 'Understanding the Stages of Grief', url: 'https://www.cruse.org.uk/understanding-grief/', createdAt: new Date('2026-01-20T09:00:00') },
+  { id: 'bk-t4-2', therapistId: 't4', title: 'Motivational Interviewing: An Overview', url: 'https://motivationalinterviewing.org/understanding-motivational-interviewing', createdAt: new Date('2026-01-25T14:00:00') },
+  { id: 'bk-t4-3', therapistId: 't4', title: 'SMART Recovery Self-Help Network', url: 'https://www.smartrecovery.org', createdAt: new Date('2026-02-01T10:00:00') },
+  { id: 'bk-t4-4', therapistId: 't4', title: 'Career Transitions and Mental Health – APA', url: 'https://www.apa.org/topics/career', createdAt: new Date('2026-02-08T11:30:00') },
+  { id: 'bk-t4-5', therapistId: 't4', title: 'Coping with Loss: A Guide for Men', url: 'https://www.mind.org.uk/information-support/types-of-mental-health-problems/bereavement/', createdAt: new Date('2026-02-12T09:00:00') },
 ];
 
 // Mock posts (therapist insights)
@@ -1009,6 +1158,31 @@ export const mockVideoSessions: VideoSession[] = [
     modality: 'phoneCall',
     isPaid: true,
     price: 180
+  },
+  // Feb 24: some booked sessions for occupancy testing
+  {
+    id: 'vs16',
+    therapistId: 't1',
+    clientId: 'c2',
+    scheduledTime: new Date(2026, 1, 24, 9, 0, 0), // Feb 24, 2026 at 09:00
+    duration: 50,
+    status: 'scheduled',
+    sessionRateId: 'sr1',
+    modality: 'video',
+    isPaid: true,
+    price: 175
+  },
+  {
+    id: 'vs17',
+    therapistId: 't1',
+    clientId: 'c3',
+    scheduledTime: new Date(2026, 1, 24, 10, 0, 0), // Feb 24, 2026 at 10:00
+    duration: 50,
+    status: 'scheduled',
+    sessionRateId: 'sr2',
+    modality: 'inPerson',
+    isPaid: true,
+    price: 225
   }
 ];
 
@@ -1064,72 +1238,7 @@ export const mockWorkshops: Workshop[] = [
   }
 ];
 
-// Journal types and data
-export type MoodRating = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
-export type PhysicalRating = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
-export type SleepQuality = 'excellent' | 'good' | 'fair' | 'poor' | 'veryPoor';
-export type AnxietyLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
-export type StressLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
-
-export interface JournalEntry {
-  id: string;
-  clientId: string;
-  date: Date;
-  moodRating: MoodRating;
-  physicalRating: PhysicalRating;
-  sleepQuality?: SleepQuality;
-  sleepHours?: number;
-  anxietyLevel?: AnxietyLevel;
-  stressLevel?: StressLevel;
-  gratitude?: string[];
-  accomplishments?: string[];
-  challenges?: string;
-  activities?: string[];
-  goals?: string[];
-  thoughts: string;
-  sharedWithTherapistIds: string[]; // Which therapists can see this entry (empty = private)
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Assessment types
-export type AssessmentFrequency = 0 | 1 | 2 | 3; // Not at all, Several days, More than half the days, Nearly every day
-
-export interface PHQ9Response {
-  littleInterest: AssessmentFrequency;
-  feelingDown: AssessmentFrequency;
-  sleepProblems: AssessmentFrequency;
-  feelingTired: AssessmentFrequency;
-  appetiteProblems: AssessmentFrequency;
-  feelingBad: AssessmentFrequency;
-  troubleConcentrating: AssessmentFrequency;
-  movingSpeaking: AssessmentFrequency;
-  selfHarmThoughts: AssessmentFrequency;
-  functionalImpairment?: 'notDifficult' | 'somewhatDifficult' | 'veryDifficult' | 'extremelyDifficult';
-}
-
-export interface GAD7Response {
-  feelingNervous: AssessmentFrequency;
-  cantStopWorrying: AssessmentFrequency;
-  worryingTooMuch: AssessmentFrequency;
-  troubleRelaxing: AssessmentFrequency;
-  beingRestless: AssessmentFrequency;
-  easilyAnnoyed: AssessmentFrequency;
-  feelingAfraid: AssessmentFrequency;
-  functionalImpairment?: 'notDifficult' | 'somewhatDifficult' | 'veryDifficult' | 'extremelyDifficult';
-}
-
-export interface Assessment {
-  id: string;
-  clientId: string;
-  therapistId: string;
-  date: Date;
-  phq9: PHQ9Response;
-  gad7: GAD7Response;
-  phq9Score: number;
-  gad7Score: number;
-  createdAt: Date;
-}
+// Journal & Assessment data
 
 // Helper function to calculate scores
 export const calculatePHQ9Score = (responses: PHQ9Response): number => {
@@ -1173,24 +1282,8 @@ export const getGAD7Severity = (score: number): string => {
   return 'Severe';
 };
 
-// Session Notes
-export interface SessionNote {
-  id: string;
-  clientId: string;
-  therapistId: string;
-  sessionId?: string;
-  content: string;
-  createdAt: Date;
-}
-
-// Client-authored session notes (private reflections)
-export interface ClientNote {
-  id: string;
-  clientId: string;
-  sessionId?: string;
-  content: string;
-  createdAt: Date;
-}
+// Session Notes, Therapist Journal & CPD, Client Notes
+// (type definitions now in /src/types/therapist/ and /src/types/client/)
 
 export const mockSessionNotes: SessionNote[] = [
   {
@@ -1823,7 +1916,322 @@ export const mockJournalEntries: JournalEntry[] = [
   }
 ];
 
+// Mock therapist journal entries
+export const mockTherapistJournalEntries: TherapistJournalEntry[] = [
+  {
+    id: 'tj1',
+    therapistId: 't1',
+    date: new Date('2026-02-20'),
+    mood: 7,
+    thoughtsAndFeelings: 'Good day overall. Had a breakthrough session with a client working through trauma — felt rewarding but emotionally draining. Need to be mindful of my own boundaries and energy levels. Supervision session tomorrow will be helpful to process.',
+    sharedWithSupervisor: true,
+    createdAt: new Date('2026-02-20T18:30:00'),
+  },
+  {
+    id: 'tj2',
+    therapistId: 't1',
+    date: new Date('2026-02-18'),
+    mood: 5,
+    thoughtsAndFeelings: 'Feeling a bit overwhelmed with caseload. Three back-to-back sessions today left me drained. I noticed some countertransference with a client who reminds me of a family member. Will bring this to supervision.',
+    sharedWithSupervisor: true,
+    createdAt: new Date('2026-02-18T20:00:00'),
+  },
+  {
+    id: 'tj3',
+    therapistId: 't1',
+    date: new Date('2026-02-15'),
+    mood: 8,
+    thoughtsAndFeelings: 'Attended a wonderful peer consultation group today. Discussed complex cases and felt supported by colleagues. Reminded me why I love this work. Feeling recharged and motivated for next week.',
+    sharedWithSupervisor: false,
+    createdAt: new Date('2026-02-15T17:00:00'),
+  },
+  {
+    id: 'tj4',
+    therapistId: 't1',
+    date: new Date('2026-02-12'),
+    mood: 4,
+    thoughtsAndFeelings: 'Difficult day. A long-term client terminated unexpectedly. Feeling a mix of sadness and self-doubt. Rationally I know it\'s their choice, but emotionally it\'s hard not to question myself. Planning to do some self-care this evening.',
+    sharedWithSupervisor: true,
+    createdAt: new Date('2026-02-12T19:15:00'),
+  },
+];
+
+// Mock CPD entries
+export const mockCpdEntries: CpdEntry[] = [
+  {
+    id: 'cpd1',
+    therapistId: 't1',
+    title: 'EMDR Advanced Training — Level 2',
+    description: 'Completed the EMDR Europe Level 2 advanced training. Covered complex trauma, dissociative disorders, and recent protocol adaptations. 30 CPD hours awarded.',
+    link: 'https://emdr-europe.org/training',
+    startDate: new Date('2026-02-10'),
+    completedDate: new Date('2026-02-18'),
+    createdAt: new Date('2026-02-19T10:00:00'),
+  },
+  {
+    id: 'cpd2',
+    therapistId: 't1',
+    title: 'Webinar: Ethical Boundaries in Online Therapy',
+    description: 'Attended a 2-hour webinar on maintaining ethical boundaries in telehealth settings. Covered informed consent, confidentiality in digital spaces, and managing dual relationships online.',
+    link: 'https://example.com/ethics-webinar',
+    startDate: new Date('2026-02-14'),
+    completedDate: new Date('2026-02-14'),
+    createdAt: new Date('2026-02-14T14:00:00'),
+  },
+  {
+    id: 'cpd3',
+    therapistId: 't1',
+    title: 'Book: "The Body Keeps the Score" — Re-read',
+    description: 'Re-read Bessel van der Kolk\'s seminal work on trauma and the body. Took detailed notes on somatic experiencing techniques to integrate into my practice with trauma clients.',
+    link: '',
+    createdAt: new Date('2026-02-10T09:00:00'),
+  },
+  {
+    id: 'cpd4',
+    therapistId: 't1',
+    title: 'Peer Supervision Group — February',
+    description: 'Monthly peer supervision session with 4 colleagues. Presented a complex case involving co-morbid anxiety and substance use. Received valuable feedback on treatment planning.',
+    link: '',
+    createdAt: new Date('2026-02-07T16:00:00'),
+  },
+  {
+    id: 'cpd5',
+    therapistId: 't1',
+    title: 'Conference: BACP Research Conference 2026',
+    description: 'Attended the annual BACP research conference. Key takeaways include new evidence on ACT for chronic pain, and the effectiveness of brief interventions in primary care settings. 12 CPD hours.',
+    link: 'https://www.bacp.co.uk/events/research-conference',
+    startDate: new Date('2026-01-23'),
+    completedDate: new Date('2026-01-25'),
+    createdAt: new Date('2026-01-25T09:00:00'),
+  },
+];
+
+// ── Supervision mock data ────────────────────────────────────────
+
+export const mockSupervisionConnections: SupervisionConnection[] = [
+  {
+    id: 'sc1',
+    superviseeId: 't1', // Dr. Sarah Johnson seeks supervision from Michael Chen
+    supervisorId: 't2',
+    status: 'accepted',
+    message: 'Hi Michael, I\'d like to arrange regular supervision. I\'m particularly interested in discussing my work with couples and families.',
+    createdAt: new Date('2026-01-10'),
+  },
+  {
+    id: 'sc2',
+    superviseeId: 't3', // Dr. Emily Rodriguez is supervised by Dr. Sarah Johnson
+    supervisorId: 't1',
+    status: 'accepted',
+    message: 'Hi Dr. Johnson, I admire your work with trauma and anxiety. I\'d love to have you as my supervisor as I deepen my OCD and eating disorder practice.',
+    createdAt: new Date('2026-01-20'),
+  },
+  // ── James Patterson (t4) supervision connections ──
+  {
+    id: 'sc3',
+    superviseeId: 't2', // Michael Chen supervised by James Patterson
+    supervisorId: 't4',
+    status: 'accepted',
+    message: 'Hi James, I\'d value your perspective on my couples and family work. Your motivational interviewing expertise would complement my practice well.',
+    createdAt: new Date('2026-01-08'),
+  },
+  {
+    id: 'sc4',
+    superviseeId: 't3', // Emily Rodriguez also requested supervision from James (pending)
+    supervisorId: 't4',
+    status: 'pending',
+    message: 'Hi Mr. Patterson, I\'m looking for additional supervision around substance use issues that come up with my clients. Would you be open to connecting?',
+    createdAt: new Date('2026-02-15'),
+  },
+];
+
+export const mockSupervisionSessions: SupervisionSession[] = [
+  {
+    id: 'ss1',
+    supervisorId: 't2',
+    superviseeId: 't1',
+    scheduledTime: new Date(2026, 1, 14, 16, 0, 0), // Feb 14
+    duration: 60,
+    status: 'completed',
+    modality: 'video',
+    price: 120,
+    notes: 'Discussed caseload management and reviewed two complex client presentations. Agreed on next steps for boundary-setting techniques.',
+  },
+  {
+    id: 'ss2',
+    supervisorId: 't2',
+    superviseeId: 't1',
+    scheduledTime: new Date(2026, 1, 23, 16, 0, 0), // Feb 23 (TODAY)
+    duration: 60,
+    status: 'scheduled',
+    modality: 'video',
+    price: 120,
+  },
+  {
+    id: 'ss3',
+    supervisorId: 't1',
+    superviseeId: 't3',
+    scheduledTime: new Date(2026, 1, 13, 17, 0, 0), // Feb 13
+    duration: 60,
+    status: 'completed',
+    modality: 'video',
+    price: 150,
+    notes: 'Explored supervisee\'s experience with trauma-focused CBT cases. Recommended additional CPD in EMDR integration.',
+  },
+  {
+    id: 'ss4',
+    supervisorId: 't1',
+    superviseeId: 't3',
+    scheduledTime: new Date(2026, 1, 27, 17, 0, 0), // Feb 27
+    duration: 60,
+    status: 'scheduled',
+    modality: 'video',
+    price: 150,
+  },
+  // ── James Patterson (t4) supervision sessions with Michael Chen (t2) ──
+  {
+    id: 'ss5',
+    supervisorId: 't4',
+    superviseeId: 't2',
+    scheduledTime: new Date(2026, 1, 10, 11, 0, 0), // Feb 10
+    duration: 60,
+    status: 'completed',
+    modality: 'video',
+    price: 110,
+  },
+  {
+    id: 'ss6',
+    supervisorId: 't4',
+    superviseeId: 't2',
+    scheduledTime: new Date(2026, 1, 24, 11, 0, 0), // Feb 24
+    duration: 60,
+    status: 'scheduled',
+    modality: 'video',
+    price: 110,
+  },
+];
+
+// Therapist journal entries for t3 (Dr. Emily Rodriguez) — visible to her supervisor (t1)
+const t3JournalEntries: TherapistJournalEntry[] = [
+  {
+    id: 'tj-t3-1',
+    therapistId: 't3',
+    date: new Date('2026-02-19'),
+    mood: 6,
+    thoughtsAndFeelings: 'Challenging day with a client presenting with severe OCD and co-morbid eating disorder. Struggled with prioritising treatment targets. Need to discuss case formulation with my supervisor Dr. Johnson.',
+    sharedWithSupervisor: true,
+    createdAt: new Date('2026-02-19T19:00:00'),
+  },
+  {
+    id: 'tj-t3-2',
+    therapistId: 't3',
+    date: new Date('2026-02-17'),
+    mood: 8,
+    thoughtsAndFeelings: 'Great progress with ERP work today. A client who couldn\'t enter a supermarket last month managed a full shop. Moments like these remind me why I do this work. Feeling competent and grateful.',
+    sharedWithSupervisor: true,
+    createdAt: new Date('2026-02-17T18:00:00'),
+  },
+  {
+    id: 'tj-t3-3',
+    therapistId: 't3',
+    date: new Date('2026-02-14'),
+    mood: 4,
+    thoughtsAndFeelings: 'Feeling burnt out. Had a difficult conversation with a client\'s parent who questioned the treatment approach. Need to set better boundaries around communications outside sessions. This is personal — not sharing with supervision.',
+    sharedWithSupervisor: false,
+    createdAt: new Date('2026-02-14T21:00:00'),
+  },
+  {
+    id: 'tj-t3-4',
+    therapistId: 't3',
+    date: new Date('2026-02-12'),
+    mood: 7,
+    thoughtsAndFeelings: 'Supervision session with Dr. Johnson was incredibly helpful. We discussed my approach to a complex case and she offered a different perspective on the maintaining factors. I feel more confident in my formulation now.',
+    sharedWithSupervisor: true,
+    createdAt: new Date('2026-02-12T17:30:00'),
+  },
+];
+
+// Push t3 entries into the shared array so they persist together
+mockTherapistJournalEntries.push(...t3JournalEntries);
+
+// Therapist journal entries for t2 (Michael Chen) — visible to his supervisor (t4 James Patterson)
+const t2JournalEntries: TherapistJournalEntry[] = [
+  {
+    id: 'tj-t2-1',
+    therapistId: 't2',
+    date: new Date('2026-02-20'),
+    mood: 7,
+    thoughtsAndFeelings: 'Had a breakthrough with a long-term couples client today. They were able to use the Gottman repair attempts we\'ve been practising. Both partners seemed genuinely surprised at how well it went. Felt really rewarding.',
+    sharedWithSupervisor: true,
+    createdAt: new Date('2026-02-20T19:00:00'),
+  },
+  {
+    id: 'tj-t2-2',
+    therapistId: 't2',
+    date: new Date('2026-02-18'),
+    mood: 5,
+    thoughtsAndFeelings: 'Difficult session with a couple where one partner disclosed infidelity during the session. I managed to hold the space but felt quite shaken afterwards. Need to bring this to supervision with James.',
+    sharedWithSupervisor: true,
+    createdAt: new Date('2026-02-18T20:30:00'),
+  },
+  {
+    id: 'tj-t2-3',
+    therapistId: 't2',
+    date: new Date('2026-02-15'),
+    mood: 8,
+    thoughtsAndFeelings: 'Attended a fantastic EFT training workshop. Picked up some new techniques for working with attachment injuries in couples. Excited to integrate these into my practice.',
+    sharedWithSupervisor: false,
+    createdAt: new Date('2026-02-15T17:00:00'),
+  },
+  {
+    id: 'tj-t2-4',
+    therapistId: 't2',
+    date: new Date('2026-02-12'),
+    mood: 6,
+    thoughtsAndFeelings: 'Supervision session with James was really grounding. We explored my countertransference with a family case where the dynamics mirror some of my own family patterns. His motivational interviewing lens helped me see the ambivalence more clearly.',
+    sharedWithSupervisor: true,
+    createdAt: new Date('2026-02-12T18:00:00'),
+  },
+];
+mockTherapistJournalEntries.push(...t2JournalEntries);
+
+// Theme settings for therapists
+export let mockThemeSettings: ThemeSettings = {
+  primaryColor: '#3b82f6', // blue-500
+  supervisionColor: '#ec4899', // pink-500
+  workshopColor: '#f97316', // orange-500
+  // Modality colors
+  videoColor: '#8b5cf6', // violet-500
+  inPersonColor: '#10b981', // green-500
+  textColor: '#06b6d4', // cyan-500
+  phoneCallColor: '#f59e0b', // amber-500
+  // General colors
+  accentColor: '#06b6d4', // cyan-500
+  successColor: '#10b981', // green-500
+  warningColor: '#f59e0b', // amber-500
+  errorColor: '#ef4444', // red-500
+  // Dark mode color variants (slightly brighter/lighter for dark backgrounds)
+  darkPrimaryColor: '#60a5fa', // blue-400
+  darkSupervisionColor: '#f472b6', // pink-400
+  darkWorkshopColor: '#fb923c', // orange-400
+  darkVideoColor: '#a78bfa', // violet-400
+  darkInPersonColor: '#34d399', // emerald-400
+  darkTextColor: '#22d3ee', // cyan-400
+  darkPhoneCallColor: '#fbbf24', // amber-400
+  darkAccentColor: '#22d3ee', // cyan-400
+  darkSuccessColor: '#34d399', // emerald-400
+  darkWarningColor: '#fbbf24', // amber-400
+  darkErrorColor: '#f87171', // red-400
+  // Dark mode
+  darkMode: false,
+};
+
 // ---- DEV-ONLY: hydrate mutable arrays from localStorage ---------------------
 // (Remove this block for production — see devPersistence.ts header for full guide)
-import { hydrateMockData } from "./devPersistence";
-hydrateMockData(mockConnections, mockProBonoTokens, mockMessages, mockSessionNotes, mockClientCourseBookings);
+import { hydrateMockData, hydrateThemeSettings } from "./devPersistence";
+hydrateMockData(mockConnections, mockProBonoTokens, mockMessages, mockSessionNotes, mockClientCourseBookings, mockTherapistJournalEntries, mockCpdEntries, mockSupervisionConnections, mockSupervisionSessions, mockTherapistBookmarks, mockVideoSessions, mockTherapists as unknown[]);
+
+// Hydrate theme settings from localStorage
+const savedTheme = hydrateThemeSettings();
+if (savedTheme) {
+  Object.assign(mockThemeSettings, savedTheme);
+}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { mockCurrentClient, mockTherapists, mockConnections } from "../data/mockData";
+import { mockCurrentClient, mockTherapists, mockConnections, mockCurrentTherapist } from "../data/mockData";
 import TherapistCard from "../components/TherapistCard";
 import Layout from "../components/Layout";
 import { Input } from "../components/ui/input";
@@ -11,10 +11,15 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "../components/ui/select";
+import { useProfileMode } from "../contexts/ProfileModeContext";
 
 export default function FindTherapists() {
   const [searchQuery, setSearchQuery] = useState("");
   const [specializationFilter, setSpecializationFilter] = useState<string>("all");
+  const { isClientMode } = useProfileMode();
+
+  // The therapist's own ID — used to hide their own profile in client mode
+  const ownTherapistId = isClientMode ? mockCurrentTherapist.id : null;
 
   // Get unique specializations for filter
   const allSpecializations = Array.from(
@@ -23,6 +28,9 @@ export default function FindTherapists() {
 
   // Filter therapists
   const filteredTherapists = mockTherapists.filter(therapist => {
+    // Hide the therapist's own profile when browsing as a client
+    if (ownTherapistId && therapist.id === ownTherapistId) return false;
+
     const matchesSearch = 
       therapist.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       therapist.specializations.some(s => s.toLowerCase().includes(searchQuery.toLowerCase())) ||

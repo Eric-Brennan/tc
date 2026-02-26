@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import React from "react";
 import { Calendar as BigCalendar, dateFnsLocalizer } from "react-big-calendar";
 // CSS is loaded globally via /src/styles/calendar.css @import
 import type { View } from "react-big-calendar";
@@ -10,17 +10,29 @@ import {
   mockCurrentClient,
   mockCurrentTherapist,
   mockTherapists,
-  mockClients 
+  mockClients,
+  mockSupervisionSessions,
 } from "../data/mockData";
+import type { AvailabilityWindow } from "../data/mockData";
+import { persistMockData } from "../data/devPersistence";
 import Layout from "../components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog";
-import { Calendar as CalendarIcon, Video, Users, Download, ExternalLink, Clock } from "lucide-react";
-import { useNavigate, useLocation } from "react-router";
+import { Calendar as CalendarIcon, Video, Users, Download, ExternalLink, Clock, Shield, MessageSquare, Phone } from "lucide-react";
+import { useNavigate, useLocation, useSearchParams } from "react-router";
 import AvailabilityCalendar from "../components/AvailabilityCalendar";
 import { useIsMobileView } from "../hooks/useIsMobileView";
+import { useThemeContext } from "../contexts/ThemeContext";
+import { getActiveColor } from "../hooks/useTheme";
+import { getContrastTextColor } from "../utils/themeColors";
+import { useProfileMode } from "../contexts/ProfileModeContext";
+import { ArrowLeftRight, Plus, X } from "lucide-react";
+import { toast } from "sonner";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Textarea } from "../components/ui/textarea";
 
 // Setup the localizer for react-big-calendar
 const locales = {
@@ -41,7 +53,8 @@ interface CalendarEvent {
   title: string;
   start: Date;
   end: Date;
-  type: 'session' | 'workshop';
+  type: 'session' | 'workshop' | 'supervision' | 'availability';
+  modality?: 'video' | 'inPerson' | 'text' | 'phoneCall';
   therapistId: string;
   description?: string;
   isPaid?: boolean;
@@ -49,30 +62,150 @@ interface CalendarEvent {
   isRegistered?: boolean;
   maxParticipants?: number;
   currentParticipants?: number;
+  superviseeId?: string; // For supervision sessions
+  supervisorId?: string; // For supervision sessions
+}
+
+/** Resolve the modality-aware theme color for a calendar event */
+function getEventColor(event: CalendarEvent, themeSettings: import("../data/mockData").ThemeSettings): string {
+  if (event.type === 'supervision') {
+    return getActiveColor('supervisionColor', themeSettings);
+  }
+  if (event.type === 'workshop') {
+    return getActiveColor('workshopColor', themeSettings);
+  }
+  // Session — use modality color
+  switch (event.modality) {
+    case 'video':
+      return getActiveColor('videoColor', themeSettings);
+    case 'inPerson':
+      return getActiveColor('inPersonColor', themeSettings);
+    case 'text':
+      return getActiveColor('textColor', themeSettings);
+    case 'phoneCall':
+      return getActiveColor('phoneCallColor', themeSettings);
+    default:
+      return getActiveColor('primaryColor', themeSettings);
+  }
+}
+
+/** Icon component for a calendar event, coloured by theme */
+function EventIcon({ event, themeSettings, className }: { event: CalendarEvent; themeSettings: import("../data/mockData").ThemeSettings; className?: string }) {
+  const color = getEventColor(event, themeSettings);
+  if (event.type === 'supervision') return <Shield className={className} style={{ color }} />;
+  if (event.type === 'workshop') return <Users className={className} style={{ color }} />;
+  switch (event.modality) {
+    case 'inPerson':
+      return <Users className={className} style={{ color }} />;
+    case 'text':
+      return <MessageSquare className={className} style={{ color }} />;
+    case 'phoneCall':
+      return <Phone className={className} style={{ color }} />;
+    case 'video':
+    default:
+      return <Video className={className} style={{ color }} />;
+  }
 }
 
 export default function Calendar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { themeSettings } = useThemeContext();
+  const { isClientMode, exitClientMode } = useProfileMode();
   
+  // Check for ?editAvailability=1 query param — auto-open the availability dialog
+  const shouldOpenAvailability = searchParams.get('editAvailability') === '1';
+  // Clear the param after reading so it doesn't re-trigger on re-renders
+  React.useEffect(() => {
+    if (shouldOpenAvailability) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete('editAvailability');
+        return next;
+      }, { replace: true });
+    }
+  }, [shouldOpenAvailability, setSearchParams]);
+
   // Determine if we're in therapist mode (needed for default view)
   const isTherapistMode = location.pathname.startsWith('/t/');
   const currentUser = isTherapistMode ? mockCurrentTherapist : mockCurrentClient;
 
   // Default to agenda view on mobile, week for therapists, month for clients
   const isMobile = useIsMobileView();
-  const [view, setView] = useState<View>(isMobile ? 'agenda' : isTherapistMode ? 'week' : 'month');
-  const [calendarDate, setCalendarDate] = useState<Date>(new Date());
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const [showEventDialog, setShowEventDialog] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [showDayEventsDialog, setShowDayEventsDialog] = useState(false);
+  const [view, setView] = React.useState<View>(isMobile ? 'agenda' : isTherapistMode ? 'week' : 'month');
+  const [calendarDate, setCalendarDate] = React.useState<Date>(() => {
+    // Anchor to first availability window or first event so the calendar shows relevant data
+    if (isTherapistMode && !isClientMode) {
+      const windows = mockCurrentTherapist.availabilityWindows ?? [];
+      if (windows.length > 0) {
+        const sorted = [...windows].sort((a, b) => a.date.localeCompare(b.date));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const futureWindow = sorted.find(w => new Date(w.date + 'T12:00:00') >= today);
+        if (futureWindow) return new Date(futureWindow.date + 'T12:00:00');
+        return new Date(sorted[sorted.length - 1].date + 'T12:00:00');
+      }
+    }
+    return new Date();
+  });
+  const [selectedEvent, setSelectedEvent] = React.useState<CalendarEvent | null>(null);
+  const [showEventDialog, setShowEventDialog] = React.useState(false);
+  const [selectedDate, setSelectedDate] = React.useState<Date | null>(null);
+  const [showDayEventsDialog, setShowDayEventsDialog] = React.useState(false);
+
+  // Workshop scheduling mode
+  const [workshopMode, setWorkshopMode] = React.useState(false);
+  const [showWorkshopDialog, setShowWorkshopDialog] = React.useState(false);
+  const [workshopDraft, setWorkshopDraft] = React.useState<{
+    start: Date;
+    end: Date;
+    title: string;
+    description: string;
+    modality: 'video' | 'inPerson';
+    price: number;
+    maxParticipants: number;
+  }>({
+    start: new Date(),
+    end: new Date(),
+    title: '',
+    description: '',
+    modality: 'video',
+    price: 25,
+    maxParticipants: 20,
+  });
+  // Counter to force events useMemo to recompute after adding a workshop or when data changes
+  const [workshopRefreshKey, setWorkshopRefreshKey] = React.useState(0);
+  
+  // Listen for mock data updates (from bookings, etc.)
+  React.useEffect(() => {
+    const handler = () => {
+      setWorkshopRefreshKey(prev => prev + 1);
+    };
+    window.addEventListener('mockDataUpdated', handler);
+    return () => window.removeEventListener('mockDataUpdated', handler);
+  }, []);
+
+  // Track current selection during drag for tooltip
+  const [selectingRange, setSelectingRange] = React.useState<{ start: Date; end: Date } | null>(null);
+  const [selectingMousePos, setSelectingMousePos] = React.useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const calendarWrapperRef = React.useRef<HTMLDivElement>(null);
+
+  // Track mouse position for workshop selection tooltip
+  React.useEffect(() => {
+    if (!workshopMode) return;
+    const handler = (e: MouseEvent) => {
+      setSelectingMousePos({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('mousemove', handler);
+    return () => window.removeEventListener('mousemove', handler);
+  }, [workshopMode]);
 
   // Scroll to current time when switching to day/week views
-  const scrollToTime = useMemo(() => new Date(), []);
+  const scrollToTime = React.useMemo(() => new Date(), []);
 
   // Ref to scroll to current time when view changes to day/week
-  const calendarContainerRef = useCallback((node: HTMLDivElement | null) => {
+  const calendarContainerRef = React.useCallback((node: HTMLDivElement | null) => {
     if (!node) return;
     // Small delay to let BigCalendar render the time view
     setTimeout(() => {
@@ -91,10 +224,12 @@ export default function Calendar() {
   }, [view]);
 
   // Combine sessions and workshops into calendar events
-  const events: CalendarEvent[] = useMemo(() => {
+  const events: CalendarEvent[] = React.useMemo(() => {
     const sessionEvents: CalendarEvent[] = mockVideoSessions
       .filter(session => 
         isTherapistMode
+          ? (session.therapistId === mockCurrentTherapist.id && session.status === 'scheduled')
+          : isClientMode
           ? (session.therapistId === mockCurrentTherapist.id && session.status === 'scheduled')
           : (session.clientId === mockCurrentClient.id && session.status === 'scheduled' && session.isPaid)
       )
@@ -105,10 +240,14 @@ export default function Calendar() {
         
         // Get session rate title if available
         let sessionTitle = 'Session';
+        let resolvedModality = session.modality;
         if (session.sessionRateId && therapist?.sessionRates) {
           const sessionRate = therapist.sessionRates.find(sr => sr.id === session.sessionRateId);
           if (sessionRate) {
             sessionTitle = sessionRate.title;
+            if (!resolvedModality) {
+              resolvedModality = sessionRate.modality;
+            }
           }
         } else if (session.modality) {
           // Fallback to modality if no session rate
@@ -117,12 +256,13 @@ export default function Calendar() {
         
         return {
           id: session.id,
-          title: isTherapistMode 
+          title: (isTherapistMode || isClientMode)
             ? `${sessionTitle} with ${clientFirstName}` 
             : `Session with ${therapist?.name || 'Therapist'}`,
           start: session.scheduledTime,
           end: new Date(session.scheduledTime.getTime() + session.duration * 60000),
           type: 'session' as const,
+          modality: resolvedModality as CalendarEvent['modality'],
           therapistId: session.therapistId,
           isPaid: session.isPaid,
           price: session.price,
@@ -165,16 +305,93 @@ export default function Calendar() {
         };
       });
 
-    return [...sessionEvents, ...workshopEvents];
-  }, [isTherapistMode]);
+    const supervisionEvents: CalendarEvent[] = isTherapistMode ? mockSupervisionSessions
+      .filter(supervision => 
+        (supervision.supervisorId === mockCurrentTherapist.id || supervision.superviseeId === mockCurrentTherapist.id) &&
+        supervision.status === 'scheduled'
+      )
+      .map(supervision => {
+        const otherTherapist = supervision.supervisorId === mockCurrentTherapist.id
+          ? mockTherapists.find(t => t.id === supervision.superviseeId)
+          : mockTherapists.find(t => t.id === supervision.supervisorId);
+        
+        const isSupervisor = supervision.supervisorId === mockCurrentTherapist.id;
+        const firstName = otherTherapist?.name.split(' ')[0] || 'Therapist';
+        
+        return {
+          id: supervision.id,
+          title: isSupervisor ? `Supervision with ${firstName}` : `Supervision with ${otherTherapist?.name || 'Supervisor'}`,
+          start: supervision.scheduledTime,
+          end: new Date(supervision.scheduledTime.getTime() + supervision.duration * 60000),
+          type: 'supervision' as const,
+          therapistId: supervision.supervisorId,
+          price: supervision.price,
+          superviseeId: supervision.superviseeId,
+          supervisorId: supervision.supervisorId,
+        };
+      })
+      : [];
 
-  const handleSelectEvent = useCallback((event: CalendarEvent) => {
+    return [...sessionEvents, ...workshopEvents, ...supervisionEvents];
+  }, [isTherapistMode, isClientMode, workshopRefreshKey]);
+
+  // Availability windows as background events (therapist mode only)
+  const backgroundEvents: CalendarEvent[] = React.useMemo(() => {
+    if (!isTherapistMode || isClientMode) return [];
+    const windows = mockCurrentTherapist.availabilityWindows ?? [];
+    return windows.map((w, i) => {
+      const [startH, startM] = w.startTime.split(':').map(Number);
+      const [endH, endM] = w.endTime.split(':').map(Number);
+      const startDate = new Date(w.date + 'T12:00:00');
+      startDate.setHours(startH, startM, 0, 0);
+      const endDate = new Date(w.date + 'T12:00:00');
+      endDate.setHours(endH, endM, 0, 0);
+      return {
+        id: `avail-${i}`,
+        title: 'Available',
+        start: startDate,
+        end: endDate,
+        type: 'availability' as const,
+        therapistId: mockCurrentTherapist.id,
+      };
+    });
+  }, [isTherapistMode, isClientMode, workshopRefreshKey]);
+
+  const handleSelectEvent = React.useCallback((event: CalendarEvent) => {
     setSelectedEvent(event);
     setShowEventDialog(true);
   }, []);
 
   // Handle clicking on a date in month view (especially for mobile)
-  const handleSelectSlot = useCallback((slotInfo: { start: Date; end: Date; slots: Date[] | string[]; action: 'select' | 'click' | 'doubleClick' }) => {
+  const handleSelectSlot = React.useCallback((slotInfo: { start: Date; end: Date; slots: Date[] | string[]; action: 'select' | 'click' | 'doubleClick' }) => {
+    // Workshop mode: capture drag selection to create a workshop
+    if (workshopMode && slotInfo.action === 'select') {
+      const duration = Math.round((slotInfo.end.getTime() - slotInfo.start.getTime()) / 60000);
+      if (duration < 15) {
+        toast.error('Please drag to select at least a 15-minute time slot');
+        return;
+      }
+      setWorkshopDraft(prev => ({
+        ...prev,
+        start: slotInfo.start,
+        end: slotInfo.end,
+        title: '',
+        description: '',
+        modality: 'video',
+        price: 25,
+        maxParticipants: 20,
+      }));
+      setShowWorkshopDialog(true);
+      return;
+    }
+
+    // Workshop mode: clicking in month view should switch to week view for that date
+    if (workshopMode && slotInfo.action === 'click') {
+      setCalendarDate(slotInfo.start);
+      setView('week');
+      return;
+    }
+
     // Only handle single clicks on dates
     if (slotInfo.action === 'click') {
       const clickedDate = slotInfo.start;
@@ -194,7 +411,54 @@ export default function Calendar() {
         setShowDayEventsDialog(true);
       }
     }
-  }, [events]);
+  }, [events, workshopMode]);
+
+  // Workshop creation handler
+  const handleCreateWorkshop = React.useCallback(() => {
+    if (!workshopDraft.title.trim()) {
+      toast.error('Please enter a workshop title');
+      return;
+    }
+    if (!workshopDraft.description.trim()) {
+      toast.error('Please enter a workshop description');
+      return;
+    }
+
+    const duration = Math.round((workshopDraft.end.getTime() - workshopDraft.start.getTime()) / 60000);
+
+    const newWorkshop = {
+      id: `w-${Date.now()}`,
+      therapistId: mockCurrentTherapist.id,
+      title: workshopDraft.title.trim(),
+      description: workshopDraft.description.trim(),
+      scheduledTime: workshopDraft.start,
+      duration,
+      maxParticipants: workshopDraft.maxParticipants,
+      currentParticipants: 0,
+      price: workshopDraft.price,
+      modality: workshopDraft.modality,
+    };
+
+    mockWorkshops.push(newWorkshop);
+    setWorkshopRefreshKey(k => k + 1);
+    setShowWorkshopDialog(false);
+    setWorkshopMode(false);
+    toast.success(`Workshop "${newWorkshop.title}" created successfully`);
+  }, [workshopDraft]);
+
+  // Toggle workshop mode
+  const handleToggleWorkshopMode = React.useCallback(() => {
+    setWorkshopMode(prev => {
+      const entering = !prev;
+      if (entering) {
+        // Switch to week or day view if in month or agenda
+        if (view === 'month' || view === 'agenda') {
+          setView('week');
+        }
+      }
+      return entering;
+    });
+  }, [view]);
 
   // Get events for a specific date
   const getEventsForDate = (date: Date | null) => {
@@ -264,10 +528,10 @@ END:VCALENDAR`;
   // Custom event styling
   const eventStyleGetter = (event: CalendarEvent) => {
     const style: React.CSSProperties = {
-      backgroundColor: event.type === 'session' ? '#3b82f6' : '#8b5cf6',
+      backgroundColor: getEventColor(event, themeSettings),
       borderRadius: '4px',
       opacity: 0.9,
-      color: 'white',
+      color: getContrastTextColor(getEventColor(event, themeSettings)),
       border: '0',
       display: 'block',
     };
@@ -357,7 +621,8 @@ END:VCALENDAR`;
         <div
           className="mobile-month-event-pill"
           style={{
-            backgroundColor: event.type === 'session' ? '#3b82f6' : '#8b5cf6',
+            backgroundColor: getEventColor(event, themeSettings),
+            color: getContrastTextColor(getEventColor(event, themeSettings)),
           }}
           onClick={(e) => {
             e.stopPropagation();
@@ -395,8 +660,8 @@ END:VCALENDAR`;
     ? mockTherapists.find(t => t.id === selectedEvent.therapistId)
     : null;
 
-  // Get client info for selected event in therapist mode
-  const selectedEventClient = selectedEvent && isTherapistMode
+  // Get client info for selected event in therapist mode or client mode
+  const selectedEventClient = selectedEvent && (isTherapistMode || isClientMode)
     ? (() => {
         const session = mockVideoSessions.find(s => s.id === selectedEvent.id);
         return session ? mockClients.find(c => c.id === session.clientId) : null;
@@ -404,7 +669,7 @@ END:VCALENDAR`;
     : null;
 
   // Handle highlighting a session when navigated from dashboard
-  useEffect(() => {
+  React.useEffect(() => {
     const state = location.state as { highlightSessionId?: string } | null;
     if (state?.highlightSessionId) {
       // Find the event to highlight
@@ -419,7 +684,7 @@ END:VCALENDAR`;
   }, [events, location.state]);
 
   // Custom Agenda view — renders every event with its own date cell (no rowSpan grouping)
-  const CustomAgendaView = useMemo(() => {
+  const CustomAgendaView = React.useMemo(() => {
     const AgendaView = ({ date, events: allEvents, accessors, localizer: loc }: any) => {
       const end = addDays(date, 30);
       const rangeEvents = (allEvents as CalendarEvent[])
@@ -524,20 +789,88 @@ END:VCALENDAR`;
             <div className={`flex flex-col min-h-[500px] ${isMobile ? '' : 'lg:col-span-2 lg:min-h-0 border rounded-xl bg-card shadow-sm'}`}>
               {!isMobile && (
                 <div className="p-6 pb-3">
-                  <h3 className="flex items-center gap-2 text-xl font-semibold">
-                    <CalendarIcon className="w-5 h-5" />
-                    Schedule
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Your upcoming therapy sessions and workshops
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="flex items-center gap-2 text-xl font-semibold">
+                        <CalendarIcon className="w-5 h-5" />
+                        Schedule
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Your upcoming therapy sessions and workshops
+                      </p>
+                    </div>
+                    {isTherapistMode && (
+                      <Button
+                        size="sm"
+                        variant={workshopMode ? "destructive" : "default"}
+                        className="gap-2 shrink-0"
+                        onClick={handleToggleWorkshopMode}
+                      >
+                        {workshopMode ? (
+                          <>
+                            <X className="w-4 h-4" />
+                            Cancel
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="w-4 h-4" />
+                            Add Workshop
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                  {workshopMode && (
+                    <div className="mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
+                      <p className="text-sm text-amber-800 dark:text-amber-200">
+                        <span className="font-medium">Workshop scheduling mode:</span> Click and drag on the calendar to select a time slot for your workshop.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+              {isMobile && isTherapistMode && (
+                <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Schedule</span>
+                  <Button
+                    size="sm"
+                    variant={workshopMode ? "destructive" : "default"}
+                    className="gap-1.5"
+                    onClick={handleToggleWorkshopMode}
+                  >
+                    {workshopMode ? (
+                      <>
+                        <X className="w-3.5 h-3.5" />
+                        Cancel
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-3.5 h-3.5" />
+                        Add Workshop
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+              {isMobile && workshopMode && (
+                <div className="mx-4 mb-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
+                  <p className="text-xs text-amber-800 dark:text-amber-200">
+                    <span className="font-medium">Workshop mode:</span> Drag on the calendar to select a time slot.
                   </p>
                 </div>
               )}
               <div className={`flex-1 ${isMobile ? 'overflow-hidden p-0' : 'p-6 pt-0'}`}>
-                <div ref={calendarContainerRef} className={`calendar-container h-full min-h-[400px] ${isMobile ? 'is-mobile' : ''}`}>
+                <div
+                  ref={(node) => {
+                    calendarContainerRef(node);
+                    (calendarWrapperRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+                  }}
+                  className={`calendar-container h-full min-h-[400px] relative ${isMobile ? 'is-mobile' : ''} ${workshopMode ? 'workshop-mode' : ''}`}
+                >
                   <BigCalendar
                     localizer={localizer}
                     events={events}
+                    backgroundEvents={backgroundEvents}
                     startAccessor="start"
                     endAccessor="end"
                     date={calendarDate}
@@ -545,8 +878,15 @@ END:VCALENDAR`;
                     view={view}
                     onView={(newView) => setView(newView)}
                     onSelectEvent={handleSelectEvent}
-                    onSelectSlot={handleSelectSlot}
+                    onSelectSlot={(slotInfo) => {
+                      setSelectingRange(null);
+                      handleSelectSlot(slotInfo);
+                    }}
                     selectable
+                    onSelecting={workshopMode ? (range: { start: Date; end: Date }) => {
+                      setSelectingRange(range);
+                      return true;
+                    } : undefined}
                     eventPropGetter={eventStyleGetter}
                     popup
                     scrollToTime={scrollToTime}
@@ -574,6 +914,40 @@ END:VCALENDAR`;
                       } : {}),
                     }}
                   />
+                  {/* Workshop drag tooltip */}
+                  {workshopMode && selectingRange && (() => {
+                    const durationMs = selectingRange.end.getTime() - selectingRange.start.getTime();
+                    const durationMin = Math.round(durationMs / 60000);
+                    const hours = Math.floor(durationMin / 60);
+                    const mins = durationMin % 60;
+                    const durationLabel = hours > 0
+                      ? `${hours}h${mins > 0 ? ` ${mins}m` : ''}`
+                      : `${mins}m`;
+
+                    const wrapperRect = calendarWrapperRef.current?.getBoundingClientRect();
+                    if (!wrapperRect) return null;
+                    const tooltipX = Math.min(
+                      selectingMousePos.x - wrapperRect.left + 16,
+                      wrapperRect.width - 140
+                    );
+                    const tooltipY = selectingMousePos.y - wrapperRect.top - 8;
+
+                    return (
+                      <div
+                        className="absolute z-50 pointer-events-none px-2.5 py-1.5 rounded-md bg-foreground text-background shadow-lg"
+                        style={{
+                          left: tooltipX,
+                          top: tooltipY,
+                          fontSize: '0.75rem',
+                          whiteSpace: 'nowrap',
+                          transform: 'translateY(-100%)',
+                        }}
+                      >
+                        <div className="font-medium">{format(selectingRange.start, 'h:mm a')} – {format(selectingRange.end, 'h:mm a')}</div>
+                        <div className="text-[0.65rem] opacity-75">{durationLabel}</div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -589,7 +963,21 @@ END:VCALENDAR`;
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <AvailabilityCalendar sessionRates={mockCurrentTherapist.sessionRates || []} />
+                    <AvailabilityCalendar
+                      sessionRates={mockCurrentTherapist.sessionRates || []}
+                      availabilityWindows={mockCurrentTherapist.availabilityWindows}
+                      defaultOpen={shouldOpenAvailability}
+                      onSave={(updatedWindows: AvailabilityWindow[]) => {
+                        // Write updated windows back to the in-memory therapist object
+                        mockCurrentTherapist.availabilityWindows = updatedWindows;
+                        // Also update the therapist in the mockTherapists array
+                        const t = mockTherapists.find(t => t.id === mockCurrentTherapist.id);
+                        if (t) t.availabilityWindows = updatedWindows;
+                        persistMockData();
+                        // Force re-render
+                        setWorkshopRefreshKey(k => k + 1);
+                      }}
+                    />
                   </CardContent>
                 </Card>
               )}
@@ -619,11 +1007,7 @@ END:VCALENDAR`;
                           onClick={() => handleSelectEvent(event)}
                         >
                           <div className="flex items-start gap-2">
-                            {event.type === 'session' ? (
-                              <Video className="w-4 h-4 mt-1 text-blue-500" />
-                            ) : (
-                              <Users className="w-4 h-4 mt-1 text-purple-500" />
-                            )}
+                            <EventIcon event={event} themeSettings={themeSettings} className="w-4 h-4 mt-1" />
                             <div className="flex-1 min-w-0">
                               <p className="font-medium text-sm truncate">{event.title}</p>
                               <p className="text-xs text-muted-foreground">
@@ -635,7 +1019,7 @@ END:VCALENDAR`;
                                 </p>
                               )}
                             </div>
-                            <Badge variant={event.type === 'session' ? 'default' : 'secondary'}>
+                            <Badge variant={event.type === 'session' ? 'default' : event.type === 'supervision' ? 'outline' : 'secondary'}>
                               {event.type}
                             </Badge>
                           </div>
@@ -690,14 +1074,14 @@ END:VCALENDAR`;
           
           {selectedEvent && (
             <div className="space-y-4">
-              {/* Show client for therapist mode, therapist for client mode */}
-              {isTherapistMode && selectedEventClient ? (
+              {/* Show client for therapist mode or client mode, therapist for regular client */}
+              {(isTherapistMode || isClientMode) && selectedEventClient ? (
                 <div className="flex items-center gap-3">
                   <img
                     src={selectedEventClient.avatar}
                     alt={selectedEventClient.name}
-                    className="w-12 h-12 rounded-full object-cover cursor-pointer hover:ring-2 hover:ring-primary transition-all"
-                    onClick={() => navigate(`/t/clients/${selectedEventClient.id}`)}
+                    className={`w-12 h-12 rounded-full object-cover ${isTherapistMode ? 'cursor-pointer hover:ring-2 hover:ring-primary transition-all' : ''}`}
+                    onClick={() => isTherapistMode && navigate(`/t/clients/${selectedEventClient.id}`)}
                   />
                   <div>
                     <p className="font-semibold">{selectedEventClient.name}</p>
@@ -744,10 +1128,12 @@ END:VCALENDAR`;
                   </span>
                 </div>
 
-                {selectedEvent.price && (
+                {selectedEvent.price !== undefined && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Price:</span>
-                    <span className="font-medium">£{selectedEvent.price}</span>
+                    <span className="font-medium">
+                      {selectedEvent.price === 0 ? 'Free' : `£${selectedEvent.price.toFixed(2)}`}
+                    </span>
                   </div>
                 )}
 
@@ -839,6 +1225,31 @@ END:VCALENDAR`;
                   }
                 };
 
+                // In client mode, show "Switch to Therapist Profile" instead of join
+                if (isClientMode) {
+                  return (
+                    <div className="space-y-2">
+                      {isJoinable && (
+                        <div className="text-sm text-center text-muted-foreground">
+                          {timeUntilSession > 0 ? formatSoonTime(timeUntilSession) : formatSoonTime(timeUntilSession)}
+                        </div>
+                      )}
+                      <Button 
+                        className="w-full gap-2"
+                        variant="outline"
+                        onClick={() => {
+                          exitClientMode();
+                          setShowEventDialog(false);
+                          navigate('/t');
+                        }}
+                      >
+                        <ArrowLeftRight className="w-4 h-4" />
+                        Switch to Therapist Profile
+                      </Button>
+                    </div>
+                  );
+                }
+
                 return isJoinable ? (
                   <div className="space-y-2">
                     <div className="text-sm text-center text-muted-foreground">
@@ -899,11 +1310,7 @@ END:VCALENDAR`;
                     onClick={() => handleSelectEvent(event)}
                   >
                     <div className="flex items-start gap-2">
-                      {event.type === 'session' ? (
-                        <Video className="w-4 h-4 mt-1 text-blue-500" />
-                      ) : (
-                        <Users className="w-4 h-4 mt-1 text-purple-500" />
-                      )}
+                      <EventIcon event={event} themeSettings={themeSettings} className="w-4 h-4 mt-1" />
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm truncate">{event.title}</p>
                         <p className="text-xs text-muted-foreground">
@@ -915,7 +1322,7 @@ END:VCALENDAR`;
                           </p>
                         )}
                       </div>
-                      <Badge variant={event.type === 'session' ? 'default' : 'secondary'}>
+                      <Badge variant={event.type === 'session' ? 'default' : event.type === 'supervision' ? 'outline' : 'secondary'}>
                         {event.type}
                       </Badge>
                     </div>
@@ -929,6 +1336,138 @@ END:VCALENDAR`;
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Workshop Creation Dialog */}
+      <Dialog open={showWorkshopDialog} onOpenChange={setShowWorkshopDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create a Workshop</DialogTitle>
+            <DialogDescription>
+              Schedule a new workshop for your clients
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="workshop-title">Title</Label>
+              <Input
+                id="workshop-title"
+                value={workshopDraft.title}
+                onChange={(e) => setWorkshopDraft(prev => ({ ...prev, title: e.target.value }))}
+                placeholder="Workshop Title"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="workshop-description">Description</Label>
+              <Textarea
+                id="workshop-description"
+                value={workshopDraft.description}
+                onChange={(e) => setWorkshopDraft(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Workshop Description"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Modality</Label>
+              <div className="flex items-center gap-3">
+                {([
+                  { value: 'video', label: 'Video', icon: <Video className="w-3.5 h-3.5" /> },
+                  { value: 'inPerson', label: 'In Person', icon: <Users className="w-3.5 h-3.5" /> },
+                ] as const).map((opt) => {
+                  const isSelected = workshopDraft.modality === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
+                        isSelected
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border bg-background text-foreground hover:bg-muted'
+                      }`}
+                      onClick={() => setWorkshopDraft(prev => ({ ...prev, modality: opt.value }))}
+                    >
+                      <span
+                        className={`flex items-center justify-center w-4 h-4 rounded-full border-2 shrink-0 ${
+                          isSelected
+                            ? 'border-primary'
+                            : 'border-muted-foreground'
+                        }`}
+                      >
+                        {isSelected && (
+                          <span className="w-2 h-2 rounded-full bg-primary" />
+                        )}
+                      </span>
+                      {opt.icon}
+                      <span className="text-sm">{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="workshop-price">Price</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">£</span>
+                  <Input
+                    id="workshop-price"
+                    type="number"
+                    min={0}
+                    value={workshopDraft.price}
+                    onChange={(e) => setWorkshopDraft(prev => ({ ...prev, price: parseFloat(e.target.value) || 0 }))}
+                    placeholder="0.00"
+                    className="pl-7"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="workshop-maxParticipants">Max Participants</Label>
+                <Input
+                  id="workshop-maxParticipants"
+                  type="number"
+                  min={1}
+                  value={workshopDraft.maxParticipants}
+                  onChange={(e) => setWorkshopDraft(prev => ({ ...prev, maxParticipants: parseInt(e.target.value) || 1 }))}
+                  placeholder="20"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-muted-foreground text-xs">Date & Time</Label>
+                <p className="text-sm">
+                  {format(workshopDraft.start, 'EEE, MMM d')}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {format(workshopDraft.start, 'h:mm a')} – {format(workshopDraft.end, 'h:mm a')}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-muted-foreground text-xs">Duration</Label>
+                <p className="text-sm">
+                  {(() => {
+                    const mins = Math.round((workshopDraft.end.getTime() - workshopDraft.start.getTime()) / 60000);
+                    const h = Math.floor(mins / 60);
+                    const m = mins % 60;
+                    return h > 0 ? `${h}h${m > 0 ? ` ${m}m` : ''}` : `${m} minutes`;
+                  })()}
+                </p>
+              </div>
+            </div>
+
+            <Button
+              className="w-full"
+              onClick={handleCreateWorkshop}
+            >
+              Create Workshop
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </Layout>

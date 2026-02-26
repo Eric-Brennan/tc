@@ -195,7 +195,6 @@
   align-items: center;
   padding: 2px 4px;
   border-radius: 4px;
-  color: white;
   cursor: pointer;
   overflow: hidden;
   min-height: 18px;
@@ -619,6 +618,10 @@
   background-color: #eaf6ff;
 }
 
+:root.dark .calendar-container:not(.is-mobile) .rbc-today {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
 .calendar-container:not(.is-mobile) .rbc-off-range {
   color: color-mix(in srgb, var(--muted-foreground), transparent 60%);
 }
@@ -717,6 +720,11 @@
   border-top: 1px solid color-mix(in srgb, var(--border), transparent 70%);
 }
 
+/* Hour dividing lines — darker than the half-hour lines above */
+.calendar-container .rbc-timeslot-group {
+  border-bottom: 1px solid var(--border) !important;
+}
+
 .calendar-container:not(.is-mobile) .rbc-current-time-indicator {
   background-color: #74ad31;
   height: 2px;
@@ -730,4 +738,41 @@
 
 .calendar-container:not(.is-mobile) .rbc-slot-selection {
   background-color: color-mix(in srgb, var(--primary), transparent 80%);
+}
+
+/* ===== WORKSHOP SCHEDULING MODE ===== */
+.calendar-container.workshop-mode .rbc-time-content .rbc-day-slot {
+  cursor: crosshair;
+}
+
+.calendar-container.workshop-mode .rbc-time-content .rbc-day-slot .rbc-time-slot:hover {
+  background-color: color-mix(in srgb, var(--primary), transparent 88%);
+}
+
+.calendar-container.workshop-mode .rbc-slot-selection {
+  background-color: color-mix(in srgb, var(--primary), transparent 65%) !important;
+  border: 2px dashed var(--primary) !important;
+  border-radius: 4px;
+}
+
+.calendar-container.workshop-mode .rbc-month-view .rbc-day-bg {
+  cursor: pointer;
+}
+
+/* ===== AVAILABILITY BACKGROUND EVENTS ===== */
+.calendar-container .rbc-background-event {
+  background-color: color-mix(in srgb, var(--primary), transparent 88%) !important;
+  border: none !important;
+  border-left: 3px solid color-mix(in srgb, var(--primary), transparent 50%) !important;
+  border-radius: 2px !important;
+  opacity: 1 !important;
+  color: var(--primary) !important;
+  font-size: 0.7rem !important;
+  pointer-events: none;
+  z-index: 0 !important;
+}
+
+:root.dark .calendar-container .rbc-background-event {
+  background-color: color-mix(in srgb, var(--primary), transparent 92%) !important;
+  border-left-color: color-mix(in srgb, var(--primary), transparent 60%) !important;
 }

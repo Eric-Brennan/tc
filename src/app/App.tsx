@@ -1,12 +1,17 @@
 import { RouterProvider } from 'react-router';
 import { router } from './routes';
-import { Toaster } from './components/ui/sonner';
+import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { ProfileModeProvider } from './contexts/ProfileModeContext';
 
 export default function App() {
   return (
-    <>
-      <RouterProvider router={router} fallbackElement={<div />} />
-      <Toaster />
-    </>
+    <AuthProvider>
+      <ThemeProvider>
+        <ProfileModeProvider>
+          <RouterProvider router={router} fallbackElement={<div />} />
+        </ProfileModeProvider>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }

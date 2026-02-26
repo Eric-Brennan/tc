@@ -22,9 +22,10 @@ import {
   Phone,
   GripVertical,
   Copy,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { SessionRate } from "../data/mockData";
+import type { SessionRate, AvailabilityWindow } from "../data/mockData";
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -34,14 +35,18 @@ interface TimeSlot {
   startMinutes: number; // minutes from midnight
   endMinutes: number;
   enabledRateIds: string[]; // which session types can be booked here
+  maxOccupancy?: number; // max booked time in MINUTES before additional bookings become "request only"
 }
 
 interface AvailabilityCalendarProps {
   sessionRates: SessionRate[];
+  availabilityWindows?: AvailabilityWindow[];
   trigger?: React.ReactNode;
+  onSave?: (windows: AvailabilityWindow[]) => void;
+  defaultOpen?: boolean;
 }
 
-// ─── Constants ──────────────────────────────────────────────────
+// ─── Constants ─��────────────────────────────────────────────────
 
 const DAY_START = 7 * 60;
 const DAY_END = 21 * 60;
@@ -147,17 +152,39 @@ function fitCount(windowMinutes: number, sessionDuration: number): number {
 
 // ─── Seed data ──────────────────────────────────────────────────
 
-function buildInitialSlots(rates: SessionRate[]): TimeSlot[] {
+/** Parse "HH:MM" → minutes from midnight */
+function hhmmToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + (m || 0);
+}
+
+function buildInitialSlots(
+  rates: SessionRate[],
+  windows?: AvailabilityWindow[]
+): TimeSlot[] {
   if (rates.length === 0) return [];
+
+  // If real availability windows are provided, seed from those
+  if (windows && windows.length > 0) {
+    return windows.map((w) => ({
+      id: makeId(),
+      date: w.date,
+      startMinutes: hhmmToMinutes(w.startTime),
+      endMinutes: hhmmToMinutes(w.endTime),
+      enabledRateIds: [...w.enabledRateIds],
+      maxOccupancy: w.maxOccupancy,
+    }));
+  }
+
+  // Fallback: generate generic 4-week pattern
   const allIds = rates.map((r) => r.id);
   const mon = getMonday(new Date());
   const slots: TimeSlot[] = [];
 
-  // Generate 4 weeks of availability
   for (let week = 0; week < 4; week++) {
     const weekOffset = week * 7;
 
-    // Monday: morning + afternoon (all weeks)
+    // Monday: morning + afternoon
     slots.push({
       id: makeId(),
       date: toDateStr(addDays(mon, weekOffset)),
@@ -173,7 +200,7 @@ function buildInitialSlots(rates: SessionRate[]): TimeSlot[] {
       enabledRateIds: allIds.slice(0, 3),
     });
 
-    // Wednesday: morning + afternoon (all weeks)
+    // Wednesday: morning + afternoon
     slots.push({
       id: makeId(),
       date: toDateStr(addDays(mon, weekOffset + 2)),
@@ -189,7 +216,7 @@ function buildInitialSlots(rates: SessionRate[]): TimeSlot[] {
       enabledRateIds: allIds.slice(0, 2),
     });
 
-    // Friday: morning only (all weeks)
+    // Friday: morning only
     slots.push({
       id: makeId(),
       date: toDateStr(addDays(mon, weekOffset + 4)),
@@ -228,13 +255,51 @@ function buildInitialSlots(rates: SessionRate[]): TimeSlot[] {
 
 export default function AvailabilityCalendar({
   sessionRates,
+  availabilityWindows,
   trigger,
+  onSave,
+  defaultOpen = false,
 }: AvailabilityCalendarProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
+  const [isOpen, setIsOpen] = useState(defaultOpen);
   const [slots, setSlots] = useState<TimeSlot[]>(() =>
-    buildInitialSlots(sessionRates)
+    buildInitialSlots(sessionRates, availabilityWindows)
   );
+
+  // Keep a ref to the latest availability windows so the re-sync effect
+  // always reads fresh data even when the parent doesn't re-render after save.
+  const latestWindowsRef = React.useRef(availabilityWindows);
+  latestWindowsRef.current = availabilityWindows;
+
+  // Start at the week of the earliest slot so therapists immediately see their availability
+  const [weekStart, setWeekStart] = useState(() => {
+    const initialSlots = buildInitialSlots(sessionRates, availabilityWindows);
+    if (initialSlots.length > 0) {
+      const sortedDates = initialSlots.map(s => s.date).sort();
+      const earliest = new Date(sortedDates[0] + "T12:00:00");
+      const todayMonday = getMonday(new Date());
+      const slotMonday = getMonday(earliest);
+      return todayMonday > slotMonday ? todayMonday : slotMonday;
+    }
+    return getMonday(new Date());
+  });
+
+  // Re-sync internal slots from the canonical availabilityWindows whenever
+  // the dialog opens so we always reflect the latest persisted data.
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const fresh = buildInitialSlots(sessionRates, latestWindowsRef.current);
+    setSlots(fresh);
+    setActiveSlotId(null);
+    setConfirmRemove(null);
+    // Also update weekStart to show the earliest relevant week
+    if (fresh.length > 0) {
+      const sortedDates = fresh.map(s => s.date).sort();
+      const earliest = new Date(sortedDates[0] + "T12:00:00");
+      const todayMonday = getMonday(new Date());
+      const slotMonday = getMonday(earliest);
+      setWeekStart(todayMonday > slotMonday ? todayMonday : slotMonday);
+    }
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Active slot being edited
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
@@ -271,9 +336,28 @@ export default function AvailabilityCalendar({
 
   // ── Week navigation ───────────────────────────────────────────
 
-  const minWeekStart = useMemo(() => getMonday(new Date()), []);
+  const minWeekStart = useMemo(() => {
+    // Allow navigating back to the earliest slot week
+    if (slots.length > 0) {
+      const sortedDates = slots.map(s => s.date).sort();
+      const earliest = new Date(sortedDates[0] + "T12:00:00");
+      const slotMonday = getMonday(earliest);
+      const todayMonday = getMonday(new Date());
+      return slotMonday < todayMonday ? slotMonday : todayMonday;
+    }
+    return getMonday(new Date());
+  }, [slots]);
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
-  const maxDate = useMemo(() => addDays(today, AVAILABILITY_DAYS - 1), [today]);
+  const maxDate = useMemo(() => {
+    const defaultMax = addDays(today, AVAILABILITY_DAYS - 1);
+    if (slots.length > 0) {
+      const sortedDates = slots.map(s => s.date).sort();
+      const latest = new Date(sortedDates[sortedDates.length - 1] + "T12:00:00");
+      const latestPlusBuffer = addDays(latest, 28);
+      return latestPlusBuffer > defaultMax ? latestPlusBuffer : defaultMax;
+    }
+    return defaultMax;
+  }, [today, slots]);
   const maxWeekStart = useMemo(() => getMonday(maxDate), [maxDate]);
 
   const canGoPrev = weekStart.getTime() > minWeekStart.getTime();
@@ -555,6 +639,22 @@ export default function AvailabilityCalendar({
   };
 
   const handleSave = () => {
+    // Convert internal TimeSlot[] back to AvailabilityWindow[] format
+    const updatedWindows: AvailabilityWindow[] = slots.map((s) => ({
+      date: s.date,
+      startTime: fmt(s.startMinutes),
+      endTime: fmt(s.endMinutes),
+      enabledRateIds: [...s.enabledRateIds],
+      ...(s.maxOccupancy !== undefined ? { maxOccupancy: s.maxOccupancy } : {}),
+    }));
+
+    // Update the ref so re-opening the dialog reads the saved data
+    // even if the parent doesn't re-render with a new prop reference.
+    latestWindowsRef.current = updatedWindows;
+
+    if (onSave) {
+      onSave(updatedWindows);
+    }
     toast.success("Availability saved successfully!");
     setIsOpen(false);
   };
@@ -586,7 +686,7 @@ export default function AvailabilityCalendar({
     return { top, height: Math.max(height, SLOT_HEIGHT) };
   };
 
-  // ── Drag preview dimensions ───────────────────────────────────
+  // ── Drag preview dimensions ─────────��─────────────────────────
 
   const dragPreview = useMemo(() => {
     if (!dragState) return null;
@@ -756,12 +856,15 @@ export default function AvailabilityCalendar({
                         {timeLabels.map((_, slotIdx) => (
                           <div
                             key={slotIdx}
-                            className={`${
-                              slotIdx % 2 === 0
-                                ? "border-b border-border/50"
-                                : "border-b border-dashed border-border/25"
-                            }`}
-                            style={{ height: SLOT_HEIGHT }}
+                            style={{
+                              height: SLOT_HEIGHT,
+                              borderBottomWidth: 1,
+                              borderBottomStyle: slotIdx % 2 === 0 ? "solid" : "dashed",
+                              borderBottomColor: slotIdx % 2 === 0
+                                ? "var(--foreground, #333)"
+                                : "color-mix(in srgb, var(--foreground, #333) 20%, transparent)",
+                              opacity: slotIdx % 2 === 0 ? 0.2 : 1,
+                            }}
                           />
                         ))}
 
@@ -812,7 +915,13 @@ export default function AvailabilityCalendar({
                                     {fmt(slot.startMinutes)}–{fmt(slot.endMinutes)}
                                   </span>
                                   <span className="text-[9px] text-muted-foreground">
-                                    {windowHours}h
+                                    {slot.maxOccupancy !== undefined ? (
+                                      <span className="text-amber-600 dark:text-amber-400" title={`Max occupancy: ${Math.floor(slot.maxOccupancy / 60)}h${slot.maxOccupancy % 60 ? ` ${slot.maxOccupancy % 60}m` : ''}`}>
+                                        {Math.floor(slot.maxOccupancy / 60) > 0 ? `${Math.floor(slot.maxOccupancy / 60)}h` : ''}{slot.maxOccupancy % 60 ? `${slot.maxOccupancy % 60}m` : ''}/{windowHours}h
+                                      </span>
+                                    ) : (
+                                      <>{windowHours}h</>
+                                    )}
                                   </span>
                                 </div>
 
@@ -1064,6 +1173,92 @@ export default function AvailabilityCalendar({
                         </p>
                       </div>
                     )}
+
+                    {/* Max occupancy control (time-based, in minutes) */}
+                    {(() => {
+                      const windowDuration = activeSlot.endMinutes - activeSlot.startMinutes; // total window minutes
+                      const STEP = 30; // 30-min increments
+                      const currentMaxOcc = activeSlot.maxOccupancy; // undefined = unlimited (full window)
+                      const displayMinutes = currentMaxOcc ?? windowDuration;
+                      const isLimited = currentMaxOcc !== undefined && currentMaxOcc < windowDuration;
+
+                      const formatOccupancy = (mins: number) => {
+                        const h = Math.floor(mins / 60);
+                        const m = mins % 60;
+                        if (h > 0 && m > 0) return `${h}h ${m}m`;
+                        if (h > 0) return `${h}h`;
+                        return `${m}m`;
+                      };
+
+                      return (
+                        <div className={`p-2.5 rounded-lg border space-y-2 ${isLimited ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800' : 'bg-muted/30 border-border'}`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              {isLimited && <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />}
+                              <span className={`text-xs font-medium ${isLimited ? 'text-amber-800 dark:text-amber-200' : 'text-foreground'}`}>
+                                Max Occupancy
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-6 w-6"
+                                disabled={currentMaxOcc !== undefined && currentMaxOcc <= STEP}
+                                onClick={() => {
+                                  const current = currentMaxOcc ?? windowDuration;
+                                  const newVal = Math.max(STEP, current - STEP);
+                                  setSlots(prev => prev.map(s =>
+                                    s.id === activeSlot.id ? { ...s, maxOccupancy: newVal } : s
+                                  ));
+                                }}
+                              >
+                                <Minus className="w-3 h-3" />
+                              </Button>
+                              <span className={`text-xs font-mono tabular-nums min-w-[52px] text-center ${isLimited ? 'text-amber-800 dark:text-amber-200 font-medium' : ''}`}>
+                                {formatOccupancy(displayMinutes)}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-6 w-6"
+                                disabled={currentMaxOcc === undefined}
+                                onClick={() => {
+                                  if (currentMaxOcc === undefined) return;
+                                  const newVal = currentMaxOcc + STEP;
+                                  setSlots(prev => prev.map(s =>
+                                    s.id === activeSlot.id
+                                      ? { ...s, maxOccupancy: newVal >= windowDuration ? undefined : newVal }
+                                      : s
+                                  ));
+                                }}
+                              >
+                                <Plus className="w-3 h-3" />
+                              </Button>
+                              {currentMaxOcc !== undefined && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-1.5 text-xs text-muted-foreground"
+                                  onClick={() => {
+                                    setSlots(prev => prev.map(s =>
+                                      s.id === activeSlot.id ? { ...s, maxOccupancy: undefined } : s
+                                    ));
+                                  }}
+                                >
+                                  Clear
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            {currentMaxOcc !== undefined
+                              ? `Up to ${formatOccupancy(currentMaxOcc)} of booked session time allowed (window is ${formatOccupancy(windowDuration)}). Additional bookings will appear as requests for your approval.`
+                              : `No limit set — full ${formatOccupancy(windowDuration)} window is directly bookable. Reduce to require approval for extra bookings.`}
+                          </p>
+                        </div>
+                      );
+                    })()}
 
                     {activeSlot.enabledRateIds.length === 0 && (
                       <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">

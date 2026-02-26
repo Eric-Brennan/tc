@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Video, Clock, ArrowRight } from "lucide-react";
+import { Video, Clock, ArrowRight, ArrowLeftRight } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   mockVideoSessions,
   mockTherapists,
+  mockClients,
+  mockCurrentTherapist,
   type VideoSession,
 } from "../data/mockData";
+import { useProfileMode } from "../contexts/ProfileModeContext";
 
 interface UpcomingSessionBannerProps {
   clientId: string;
@@ -33,7 +36,9 @@ function formatSessionTime(date: Date): string {
 
 export function UpcomingSessionBanner({ clientId }: UpcomingSessionBannerProps) {
   const navigate = useNavigate();
+  const { isClientMode, exitClientMode } = useProfileMode();
   const [now, setNow] = useState(() => new Date());
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Tick every second for live countdown
   useEffect(() => {
@@ -41,13 +46,29 @@ export function UpcomingSessionBanner({ clientId }: UpcomingSessionBannerProps) 
     return () => clearInterval(id);
   }, []);
 
+  // Listen for mock data updates (from bookings, etc.)
+  useEffect(() => {
+    const handler = () => {
+      setRefreshKey(prev => prev + 1);
+    };
+    window.addEventListener('mockDataUpdated', handler);
+    return () => window.removeEventListener('mockDataUpdated', handler);
+  }, []);
+
   // Find the soonest upcoming session for this client within 30 minutes
   const THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
   const OVERRUN_MS = 10 * 60 * 1000; // still show up to 10 min after start
 
+  // refreshKey triggers re-computation when mock data updates
   const upcomingSessions = mockVideoSessions
     .filter((s: VideoSession) => {
-      if (s.clientId !== clientId) return false;
+      void refreshKey; // Ensure re-render when data changes
+      // In client mode, show the therapist's own sessions (where they are the therapist)
+      if (isClientMode) {
+        if (s.therapistId !== mockCurrentTherapist.id) return false;
+      } else {
+        if (s.clientId !== clientId) return false;
+      }
       if (s.status !== "scheduled") return false;
       const diff = s.scheduledTime.getTime() - now.getTime();
       // Show if within 30 min before start or up to 10 min after start (session in progress)
@@ -61,13 +82,22 @@ export function UpcomingSessionBanner({ clientId }: UpcomingSessionBannerProps) 
   if (!session) return null;
 
   const therapist = mockTherapists.find((t) => t.id === session.therapistId);
+  const client = mockClients.find((c) => c.id === session.clientId);
   const msUntil = session.scheduledTime.getTime() - now.getTime();
   const isStartingSoon = msUntil <= 5 * 60 * 1000; // 5 min or less
   const hasStarted = msUntil <= 0;
   const isVideo = session.modality === "video" || !session.modality;
 
+  // In client mode, the "with" name is the client; otherwise the therapist
+  const withName = isClientMode ? client?.name : therapist?.name;
+
   const handleJoin = () => {
     navigate(`/video-session/${session.id}`);
+  };
+
+  const handleSwitchToTherapist = () => {
+    exitClientMode();
+    navigate("/t");
   };
 
   return (
@@ -116,15 +146,15 @@ export function UpcomingSessionBanner({ clientId }: UpcomingSessionBannerProps) 
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm">
             {hasStarted
-              ? "Your session has started"
+              ? isClientMode ? "A client session has started" : "Your session has started"
               : isStartingSoon
-              ? "Your session is starting soon"
-              : "Upcoming session"}
+              ? isClientMode ? "A client session is starting soon" : "Your session is starting soon"
+              : isClientMode ? "Upcoming client session" : "Upcoming session"}
           </p>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-0.5">
-            {therapist && (
+            {withName && (
               <span className="text-sm text-muted-foreground">
-                with {therapist.name}
+                with {withName}
               </span>
             )}
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -148,7 +178,7 @@ export function UpcomingSessionBanner({ clientId }: UpcomingSessionBannerProps) 
         </div>
 
         {/* Join button */}
-        {isVideo && (
+        {isVideo && !isClientMode && (
           <Button
             onClick={handleJoin}
             className={`shrink-0 gap-2 ${
@@ -162,6 +192,17 @@ export function UpcomingSessionBanner({ clientId }: UpcomingSessionBannerProps) 
           >
             {hasStarted ? "Join Now" : "Join Session"}
             <ArrowRight className="w-4 h-4" />
+          </Button>
+        )}
+        {isVideo && isClientMode && (
+          <Button
+            onClick={handleSwitchToTherapist}
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-2"
+          >
+            <ArrowLeftRight className="w-4 h-4" />
+            Switch to Therapist Profile
           </Button>
         )}
       </div>
