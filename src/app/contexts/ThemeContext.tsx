@@ -4,6 +4,21 @@ import type { ThemeSettings } from "../data/mockData";
 import { persistThemeSettings } from "../data/devPersistence";
 import { applyThemeColors, getActiveColor } from "../hooks/useTheme";
 
+/**
+ * Detect Avast Secure Browser via User-Agent string.
+ * Known UA tokens: "AvastSecureBrowser", "ABrowser", "Avast"
+ */
+function isAvastBrowser(): boolean {
+  try {
+    const ua = navigator.userAgent;
+    return /AvastSecureBrowser|ABrowser|Avast/i.test(ua);
+  } catch {
+    return false;
+  }
+}
+
+const darkModeSupported = !isAvastBrowser();
+
 // Theme Actions
 type ThemeAction =
   | { type: "SET_THEME"; payload: ThemeSettings }
@@ -20,6 +35,7 @@ interface ThemeContextType {
   toggleAndSaveDarkMode: () => void;
   resetTheme: () => void;
   saveTheme: () => void;
+  darkModeSupported: boolean;
 }
 
 // Default theme values
@@ -58,6 +74,7 @@ const defaultThemeContext: ThemeContextType = {
   toggleAndSaveDarkMode: () => {},
   resetTheme: () => {},
   saveTheme: () => {},
+  darkModeSupported: true,
 };
 
 export const ThemeContext =
@@ -83,8 +100,20 @@ function themeReducer(state: ThemeSettings, action: ThemeAction): ThemeSettings 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeSettings, dispatch] = React.useReducer(
     themeReducer,
-    { ...mockThemeSettings }
+    { ...mockThemeSettings },
+    // If dark mode unsupported, force it off on initial load
+    (initial) => !darkModeSupported ? { ...initial, darkMode: false } : initial
   );
+
+  // On mount, if dark mode unsupported and was persisted, clear it
+  React.useEffect(() => {
+    if (!darkModeSupported && mockThemeSettings.darkMode) {
+      const forced = { ...mockThemeSettings, darkMode: false };
+      Object.assign(mockThemeSettings, forced);
+      persistThemeSettings(forced);
+      applyThemeColors(forced);
+    }
+  }, []);
 
   // Apply theme whenever it changes
   React.useEffect(() => {
@@ -126,6 +155,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       toggleAndSaveDarkMode,
       resetTheme,
       saveTheme,
+      darkModeSupported,
     }),
     [themeSettings, updateColor, toggleDarkMode, toggleAndSaveDarkMode, resetTheme, saveTheme]
   );
