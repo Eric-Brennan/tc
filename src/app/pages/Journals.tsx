@@ -9,6 +9,7 @@ import {
   mockCurrentTherapist,
   mockConnections
 } from "../data/mockData";
+import { getContrastTextColor } from "../utils/themeColors";
 import Layout from "../components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -218,7 +219,7 @@ export default function Journals() {
       backgroundColor,
       borderRadius: '4px',
       opacity: 0.9,
-      color: 'white',
+      color: getContrastTextColor(backgroundColor),
       border: '0',
       display: 'block',
     };

@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router";
 import { Button } from "./ui/button";
 import { User, Stethoscope } from "lucide-react";
+import { useProfileMode } from "../contexts/ProfileModeContext";
 
 export default function UserTypeToggle() {
   const navigate = useNavigate();
   const location = useLocation();
   const [userType, setUserType] = useState<'client' | 'therapist'>('client');
+  const { exitClientMode } = useProfileMode();
 
   useEffect(() => {
     // Determine user type based on current route
@@ -19,11 +21,13 @@ export default function UserTypeToggle() {
 
   const handleToggle = () => {
     if (userType === 'client') {
+      // Switching to therapist view — exit client mode if active
+      exitClientMode();
       setUserType('therapist');
       navigate('/t');
     } else {
       setUserType('client');
-      navigate('/');
+      navigate('/c');
     }
   };
 

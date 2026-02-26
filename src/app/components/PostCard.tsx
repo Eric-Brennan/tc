@@ -1,9 +1,9 @@
+import { useNavigate, useLocation } from "react-router";
 import { Post, mockTherapists } from "../data/mockData";
 import { Card, CardContent, CardHeader } from "./ui/card";
 import { Button } from "./ui/button";
 import { Heart, ExternalLink } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
 
 interface PostCardProps {
   post: Post;
@@ -14,7 +14,9 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
   const [isLiked, setIsLiked] = useState(post.likes.includes(currentUserId));
   const [likeCount, setLikeCount] = useState(post.likes.length);
   const navigate = useNavigate();
-
+  const location = useLocation();
+  const routePrefix = location.pathname.startsWith('/t') ? '/t' : '/c';
+  
   const therapist = mockTherapists.find(t => t.id === post.therapistId);
   
   const handleLike = () => {
@@ -28,7 +30,7 @@ export default function PostCard({ post, currentUserId }: PostCardProps) {
   };
 
   const handleTherapistClick = () => {
-    navigate(`/therapist/${post.therapistId}`);
+    navigate(`${routePrefix}/therapist/${post.therapistId}`);
   };
 
   const formatTimestamp = (date: Date) => {

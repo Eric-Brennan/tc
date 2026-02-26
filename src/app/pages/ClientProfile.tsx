@@ -270,7 +270,7 @@ export default function ClientProfile() {
                       <div
                         key={therapist.id}
                         className="flex items-center gap-3 cursor-pointer hover:bg-muted p-2.5 rounded-lg transition-colors group"
-                        onClick={() => navigate(`/therapist/${therapist.id}`)}
+                        onClick={() => navigate(`/c/therapist/${therapist.id}`)}
                       >
                         <img
                           src={therapist.avatar}
@@ -290,7 +290,7 @@ export default function ClientProfile() {
                             className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate('/messages');
+                              navigate('/c/messages');
                             }}
                           >
                             <MessageSquare className="w-4 h-4" />
@@ -318,7 +318,7 @@ export default function ClientProfile() {
                       <div
                         key={therapist.id}
                         className="flex items-center gap-3 cursor-pointer hover:bg-muted p-2.5 rounded-lg transition-colors group"
-                        onClick={() => navigate(`/therapist/${therapist.id}`)}
+                        onClick={() => navigate(`/c/therapist/${therapist.id}`)}
                       >
                         <img
                           src={therapist.avatar}
@@ -344,7 +344,7 @@ export default function ClientProfile() {
                             className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={(e) => {
                               e.stopPropagation();
-                              navigate('/messages');
+                              navigate('/c/messages');
                             }}
                           >
                             <MessageSquare className="w-4 h-4" />
@@ -360,7 +360,7 @@ export default function ClientProfile() {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => navigate('/find-therapists')}
+                onClick={() => navigate('/c/find-therapists')}
               >
                 {connectedTherapists.length > 0 ? 'Find Another Therapist' : 'Find a Therapist'}
               </Button>

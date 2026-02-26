@@ -1,6 +1,6 @@
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, useLocation } from "react-router";
 import { useState } from "react";
-import { mockTherapists, mockPosts, mockCurrentClient, mockClientCourseBookings, mockConnections, mockProBonoTokens } from "../data/mockData";
+import { mockTherapists, mockPosts, mockCurrentClient, mockClientCourseBookings, mockConnections, mockProBonoTokens, mockCurrentTherapist, mockSupervisionConnections } from "../data/mockData";
 import Layout from "../components/Layout";
 import PostCard from "../components/PostCard";
 import BookingModal from "../components/BookingModal";
@@ -23,10 +23,13 @@ import {
 import { toast } from "sonner";
 import { persistMockData } from "../data/devPersistence";
 import { governingBodyLabels, membershipLevelLabels } from "../../utils/enumLabels";
+import { useProfileMode } from "../contexts/ProfileModeContext";
 
 export default function TherapistDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isClientMode } = useProfileMode();
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [isFollowing, setIsFollowing] = useState(
     mockCurrentClient.followedTherapists?.includes(id || "") || false
@@ -34,13 +37,37 @@ export default function TherapistDetail() {
 
   const therapist = mockTherapists.find(t => t.id === id);
 
+  // Detect if this is being accessed from the therapist side (/t/therapist/:id)
+  const isTherapistRoute = location.pathname.startsWith('/t/');
+
+  // Layout user info depends on whether this is a therapist-side or client-side route
+  const layoutUserType = isTherapistRoute ? "therapist" : "client";
+  const layoutUser = isTherapistRoute ? mockCurrentTherapist : mockCurrentClient;
+
+  // If therapist is viewing their own profile in client mode, show a notice
+  const isOwnProfile = isClientMode && id === mockCurrentTherapist.id;
+
   // Connection status between current client and this therapist
   const connection = mockConnections.find(
     c => c.clientId === mockCurrentClient.id && c.therapistId === id
   );
-  const connectionStatus = connection?.status; // undefined | 'pending' | 'accepted' | 'rejected'
+
+  // For therapist route, check supervision connections instead
+  const supervisionConnection = isTherapistRoute
+    ? mockSupervisionConnections.find(sc =>
+        (sc.supervisorId === mockCurrentTherapist.id && sc.superviseeId === id) ||
+        (sc.superviseeId === mockCurrentTherapist.id && sc.supervisorId === id)
+      )
+    : null;
+
+  const connectionStatus = isTherapistRoute
+    ? supervisionConnection?.status
+    : connection?.status;
   const isConnected = connectionStatus === 'accepted';
   const isPending = connectionStatus === 'pending';
+
+  // For therapist route, "connected" via supervision means they can message directly
+  const hasSupervisionLink = isTherapistRoute && (isConnected || isPending);
 
   // Local state for optimistic "Send Message" → pending transition
   const [justRequested, setJustRequested] = useState(false);
@@ -49,14 +76,44 @@ export default function TherapistDetail() {
   if (!therapist) {
     return (
       <Layout
-        userType="client"
-        userName={mockCurrentClient.name}
-        userAvatar={mockCurrentClient.avatar}
+        userType={layoutUserType}
+        userName={layoutUser.name}
+        userAvatar={layoutUser.avatar}
       >
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
             <h2 className="text-2xl font-semibold mb-2">Therapist not found</h2>
-            <Button onClick={() => navigate('/')}>Back to Home</Button>
+            <Button onClick={() => navigate(isTherapistRoute ? '/t' : '/c')}>Back to Home</Button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (isOwnProfile) {
+    return (
+      <Layout
+        userType={layoutUserType}
+        userName={layoutUser.name}
+        userAvatar={layoutUser.avatar}
+      >
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center max-w-md mx-auto px-4">
+            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Shield className="w-8 h-8 text-primary" />
+            </div>
+            <h2 className="text-2xl font-semibold mb-2">This is your profile</h2>
+            <p className="text-muted-foreground mb-6">
+              You're currently browsing as a client. This is how clients see your profile — but you can't interact with it from here.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Button onClick={() => navigate('/t/profile')} variant="outline">
+                Go to Your Therapist Profile
+              </Button>
+              <Button onClick={() => navigate('/c')}>
+                Back to Client Home
+              </Button>
+            </div>
           </div>
         </div>
       </Layout>
@@ -92,14 +149,17 @@ export default function TherapistDetail() {
     persistMockData(); // DEV-ONLY
     toast.success(`Connection request sent to ${therapist.name}`);
     // Navigate to messages with this therapist
-    navigate(`/messages/${therapist.id}`);
+    navigate(`${msgPrefix}/${therapist.id}`);
   };
+
+  // Route-aware message path prefix
+  const msgPrefix = isTherapistRoute ? '/t/messages' : '/c/messages';
 
   return (
     <Layout
-      userType="client"
-      userName={mockCurrentClient.name}
-      userAvatar={mockCurrentClient.avatar}
+      userType={layoutUserType}
+      userName={layoutUser.name}
+      userAvatar={layoutUser.avatar}
     >
       <div className="bg-background pb-8">
         {/* Banner and Profile Header */}
@@ -157,7 +217,7 @@ export default function TherapistDetail() {
                       variant="outline"
                       size="sm"
                       className="gap-2"
-                      onClick={() => navigate(`/messages/${therapist.id}`)}
+                      onClick={() => navigate(`${msgPrefix}/${therapist.id}`)}
                     >
                       <MessageSquare className="w-4 h-4" />
                       <span className="hidden sm:inline">Message</span>
@@ -174,7 +234,7 @@ export default function TherapistDetail() {
                       variant="outline"
                       size="sm"
                       className="gap-2"
-                      onClick={() => navigate(`/messages/${therapist.id}`)}
+                      onClick={() => navigate(`${msgPrefix}/${therapist.id}`)}
                     >
                       <MessageSquare className="w-4 h-4" />
                       <span className="hidden sm:inline">Message</span>

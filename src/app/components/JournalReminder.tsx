@@ -47,7 +47,7 @@ export function JournalReminder({ clientId }: JournalReminderProps) {
         </div>
       </div>
       <Button 
-        onClick={() => navigate('/journal')} 
+        onClick={() => navigate('/c/journal')} 
         size="sm" 
         variant={journaledToday ? 'outline' : 'default'}
         className="col-span-2 w-full mt-2"

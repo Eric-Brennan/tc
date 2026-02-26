@@ -1,12 +1,18 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router";
 import { Button } from "./ui/button";
-import { Monitor, Smartphone, Palette, X, Users, RotateCcw } from "lucide-react";
+import { Monitor, Smartphone, Palette, X, Users, RotateCcw, Shield } from "lucide-react";
 import {
   getTestClientIds,
   getTestClientLabel,
   getTestClientAvatar,
   getCurrentTestClientId,
   switchTestClient,
+  getTestTherapistIds,
+  getTestTherapistLabel,
+  getTestTherapistAvatar,
+  getCurrentTestTherapistId,
+  switchTestTherapist,
 } from "../data/mockData";
 import { resetMockData } from "../data/devPersistence";
 
@@ -45,8 +51,12 @@ export default function MobileViewToggle() {
     return saved === 'true';
   });
 
+  const location = useLocation();
+  const isTherapistMode = location.pathname.startsWith('/t/') || location.pathname === '/t';
+
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showClientSwitcher, setShowClientSwitcher] = useState(false);
+  const [showTherapistSwitcher, setShowTherapistSwitcher] = useState(false);
   const [activeColor, setActiveColor] = useState(() => {
     const saved = localStorage.getItem(PRIMARY_COLOR_KEY);
     return saved || COLOR_PRESETS[0].color;
@@ -161,6 +171,63 @@ export default function MobileViewToggle() {
           </div>
         )}
 
+        {/* Therapist switcher panel */}
+        {showTherapistSwitcher && (
+          <div className="bg-background/95 backdrop-blur-sm border rounded-xl shadow-xl p-3 mb-1 w-[240px]">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-muted-foreground">Test as Therapist</span>
+              <button
+                onClick={() => setShowTherapistSwitcher(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {getTestTherapistIds().map((tid) => {
+                const isActive = tid === getCurrentTestTherapistId();
+                return (
+                  <button
+                    key={tid}
+                    onClick={() => { if (!isActive) switchTestTherapist(tid); }}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors ${
+                      isActive
+                        ? 'bg-primary/10 ring-1 ring-primary'
+                        : 'hover:bg-muted'
+                    }`}
+                  >
+                    <img
+                      src={getTestTherapistAvatar(tid)}
+                      alt={getTestTherapistLabel(tid)}
+                      className="w-8 h-8 rounded-full object-cover shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <p className={`text-sm truncate ${isActive ? 'font-semibold' : ''}`}>
+                        {getTestTherapistLabel(tid)}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">{tid}</p>
+                    </div>
+                    {isActive && (
+                      <span className="ml-auto text-[10px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full shrink-0">
+                        Active
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="pt-2 mt-2 border-t">
+              <button
+                onClick={() => { resetMockData(); window.location.reload(); }}
+                className="w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Reset Test Data
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Color picker panel */}
         {showColorPicker && (
           <div className="bg-background/95 backdrop-blur-sm border rounded-xl shadow-xl p-3 mb-1 w-[220px]">
@@ -204,7 +271,7 @@ export default function MobileViewToggle() {
         <div className="flex gap-2">
           {/* Client switcher toggle */}
           <Button
-            onClick={() => { setShowClientSwitcher(!showClientSwitcher); setShowColorPicker(false); }}
+            onClick={() => { setShowClientSwitcher(!showClientSwitcher); setShowColorPicker(false); setShowTherapistSwitcher(false); }}
             variant={showClientSwitcher ? "default" : "secondary"}
             className="rounded-full h-14 w-14 shadow-lg"
             size="icon"
@@ -213,9 +280,22 @@ export default function MobileViewToggle() {
             <Users className="h-6 w-6" />
           </Button>
 
+          {/* Therapist switcher toggle */}
+          {isTherapistMode && (
+            <Button
+              onClick={() => { setShowTherapistSwitcher(!showTherapistSwitcher); setShowClientSwitcher(false); setShowColorPicker(false); }}
+              variant={showTherapistSwitcher ? "default" : "secondary"}
+              className="rounded-full h-14 w-14 shadow-lg"
+              size="icon"
+              title="Switch Test Therapist"
+            >
+              <Shield className="h-6 w-6" />
+            </Button>
+          )}
+
           {/* Color picker toggle */}
           <Button
-            onClick={() => { setShowColorPicker(!showColorPicker); setShowClientSwitcher(false); }}
+            onClick={() => { setShowColorPicker(!showColorPicker); setShowClientSwitcher(false); setShowTherapistSwitcher(false); }}
             variant={showColorPicker ? "default" : "secondary"}
             className="rounded-full h-14 w-14 shadow-lg"
             size="icon"
