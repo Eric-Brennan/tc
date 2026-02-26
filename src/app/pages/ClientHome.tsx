@@ -2,7 +2,7 @@ import { AssessmentReminder } from "../components/AssessmentReminder";
 import { JournalReminder } from "../components/JournalReminder";
 import { UpcomingSessionBanner } from "../components/UpcomingSessionBanner";
 import { useState } from "react";
-import { mockTherapists, mockPosts, mockCurrentClient, mockConnections } from "../data/mockData";
+import { mockTherapists, mockPosts, mockCurrentClient, mockConnections, mockCurrentTherapist } from "../data/mockData";
 import TherapistCard from "../components/TherapistCard";
 import PostCard from "../components/PostCard";
 import SuggestedTherapistCard from "../components/SuggestedTherapistCard";
@@ -11,6 +11,7 @@ import { Input } from "../components/ui/input";
 import { Button } from "../components/ui/button";
 import { Search, MessageSquare, User, Calendar } from "lucide-react";
 import { useNavigate } from "react-router";
+import { useProfileMode } from "../contexts/ProfileModeContext";
 import { 
   Select, 
   SelectContent, 
@@ -26,6 +27,10 @@ export default function ClientHome() {
     mockCurrentClient.followedTherapists || []
   );
   const navigate = useNavigate();
+  const { isClientMode } = useProfileMode();
+
+  // The therapist's own ID — used to hide their own content in client mode
+  const ownTherapistId = isClientMode ? mockCurrentTherapist.id : null;
 
   // Get current therapist connection (primary therapist)
   const currentConnection = mockConnections.find(
@@ -41,6 +46,9 @@ export default function ClientHome() {
 
   // Filter therapists for search
   const filteredTherapists = mockTherapists.filter(therapist => {
+    // Hide the therapist's own profile when browsing as a client
+    if (ownTherapistId && therapist.id === ownTherapistId) return false;
+
     const matchesSearch = 
       therapist.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       therapist.specializations.some(s => s.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -58,6 +66,8 @@ export default function ClientHome() {
     ? mockTherapists.filter(t => {
         // Don't suggest the primary therapist
         if (t.id === primaryTherapist.id) return false;
+        // Don't suggest the therapist's own profile in client mode
+        if (ownTherapistId && t.id === ownTherapistId) return false;
         
         // Calculate a match score based on multiple factors
         let matchScore = 0;
@@ -120,6 +130,7 @@ export default function ClientHome() {
   
   const relevantPosts = mockPosts
     .filter(post => relevantTherapistIds.includes(post.therapistId))
+    .filter(post => !ownTherapistId || post.therapistId !== ownTherapistId)
     .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
 
   const handleToggleFollow = (therapistId: string, isFollowing: boolean) => {
@@ -178,7 +189,7 @@ export default function ClientHome() {
                   <Button
                     variant="outline"
                     className="w-full mt-4"
-                    onClick={() => navigate('/find-therapists')}
+                    onClick={() => navigate('/c/find-therapists')}
                   >
                     Find More Therapists
                   </Button>
@@ -246,7 +257,7 @@ export default function ClientHome() {
               <Button
                 variant="outline"
                 className="w-full mt-4"
-                onClick={() => navigate('/find-therapists')}
+                onClick={() => navigate('/c/find-therapists')}
               >
                 Find More Therapists
               </Button>

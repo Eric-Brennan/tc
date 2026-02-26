@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router";
 import { 
   mockMessages, 
@@ -7,6 +7,9 @@ import {
   mockCurrentClient,
   mockCurrentTherapist,
   mockConnections,
+  mockSupervisionConnections,
+  mockTherapistBookmarks,
+  mockVideoSessions,
   Message,
   User
 } from "../data/mockData";
@@ -18,6 +21,7 @@ import { Input } from "../components/ui/input";
 import { useIsMobileView } from "../hooks/useIsMobileView";
 import { toast } from "sonner";
 import { persistMockData } from "../data/devPersistence";
+import { useProfileMode } from "../contexts/ProfileModeContext";
 
 export default function Messages() {
   const { userId } = useParams<{ userId: string }>();
@@ -29,18 +33,34 @@ export default function Messages() {
 
   // Track locally-accepted connections so the banner disappears without navigation
   const [locallyAccepted, setLocallyAccepted] = useState<Set<string>>(new Set());
+  const [bookmarkTick, setBookmarkTick] = useState(0);
+
+  // Re-sync messages whenever mock data is updated externally
+  // (e.g. therapist approves a request while client's Messages is mounted)
+  useEffect(() => {
+    const handler = () => setMessages([...mockMessages]);
+    window.addEventListener('mockDataUpdated', handler);
+    return () => window.removeEventListener('mockDataUpdated', handler);
+  }, []);
 
   // Determine if we're in therapist mode based on route
   const isTherapistMode = location.pathname.startsWith('/t/');
   
+  // Client-mode awareness: therapist browsing as a client
+  const { isClientMode } = useProfileMode();
+
   // Determine current user (in real app, this would come from auth context)
   const currentUser = isTherapistMode ? mockCurrentTherapist : mockCurrentClient;
+
+  // When therapist is in client mode, exclude their own therapist ID from conversations
+  const ownTherapistId = isClientMode ? mockCurrentTherapist.id : null;
 
   // Get connected users based on accepted connections
   const connectedTherapistIds = !isTherapistMode 
     ? mockConnections
         .filter(c => (c.status === 'accepted' || c.status === 'pending') && c.clientId === currentUser.id)
         .map(c => c.therapistId)
+        .filter(id => id !== ownTherapistId) // exclude self in client mode
     : [];
   
   const connectedClientIds = isTherapistMode
@@ -48,9 +68,22 @@ export default function Messages() {
         .filter(c => (c.status === 'accepted' || c.status === 'pending') && c.therapistId === currentUser.id)
         .map(c => c.clientId)
     : [];
+
+  // In therapist mode, also include other therapists from supervision connections
+  const connectedPeerTherapistIds = isTherapistMode
+    ? mockSupervisionConnections
+        .filter(sc =>
+          (sc.status === 'accepted' || sc.status === 'pending') &&
+          (sc.supervisorId === currentUser.id || sc.superviseeId === currentUser.id)
+        )
+        .map(sc => sc.supervisorId === currentUser.id ? sc.superviseeId : sc.supervisorId)
+    : [];
   
   const connectedUsers = isTherapistMode
-    ? mockClients.filter(c => connectedClientIds.includes(c.id)) as User[]
+    ? [
+        ...(mockClients.filter(c => connectedClientIds.includes(c.id)) as User[]),
+        ...(mockTherapists.filter(t => connectedPeerTherapistIds.includes(t.id)) as User[]),
+      ]
     : mockTherapists.filter(t => connectedTherapistIds.includes(t.id)) as User[];
 
   // Get conversations
@@ -95,9 +128,24 @@ export default function Messages() {
       )
     : null;
 
+  // For therapist-to-therapist conversations, find the supervision connection
+  const selectedSupervisionConnection = selectedUser && isTherapistMode
+    ? mockSupervisionConnections.find(sc =>
+        (sc.supervisorId === currentUser.id && sc.superviseeId === selectedUser.id) ||
+        (sc.superviseeId === currentUser.id && sc.supervisorId === selectedUser.id)
+      )
+    : null;
+
+  // Determine if the selected user is a peer therapist (not a client)
+  const isSelectedUserPeerTherapist = selectedUser
+    ? connectedPeerTherapistIds.includes(selectedUser.id)
+    : false;
+
   const selectedConnectionStatus = selectedConnection
     ? (locallyAccepted.has(selectedConnection.id) ? 'accepted' : selectedConnection.status)
-    : undefined;
+    : selectedSupervisionConnection
+      ? (locallyAccepted.has(selectedSupervisionConnection.id) ? 'accepted' : selectedSupervisionConnection.status)
+      : undefined;
 
   const selectedMessages = selectedUser
     ? messages
@@ -108,15 +156,39 @@ export default function Messages() {
         .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
     : [];
 
+  // Mark messages as read when conversation is opened
+  useEffect(() => {
+    if (!selectedUser) return;
+    let didMark = false;
+    mockMessages.forEach(m => {
+      if (m.senderId === selectedUser.id && m.receiverId === currentUser.id && !m.read) {
+        m.read = true;
+        didMark = true;
+      }
+    });
+    if (didMark) {
+      persistMockData();
+      setMessages([...mockMessages]);
+    }
+  }, [selectedUser?.id, currentUser.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Prepend the connection request message as the first message in the thread
   const messagesWithConnectionMsg = (() => {
-    if (!selectedConnection?.message || !selectedUser) return selectedMessages;
+    // Use either client-therapist connection or supervision connection message
+    const connWithMessage = selectedConnection?.message
+      ? selectedConnection
+      : selectedSupervisionConnection?.message
+        ? selectedSupervisionConnection
+        : null;
+
+    if (!connWithMessage?.message || !selectedUser) return selectedMessages;
+
     const connectionMsg: Message = {
-      id: `conn-msg-${selectedConnection.id}`,
-      senderId: selectedConnection.clientId,
-      receiverId: selectedConnection.therapistId,
-      content: selectedConnection.message,
-      timestamp: selectedConnection.createdAt,
+      id: `conn-msg-${connWithMessage.id}`,
+      senderId: 'superviseeId' in connWithMessage ? connWithMessage.superviseeId : connWithMessage.clientId,
+      receiverId: 'supervisorId' in connWithMessage ? connWithMessage.supervisorId : connWithMessage.therapistId,
+      content: connWithMessage.message,
+      timestamp: connWithMessage.createdAt,
       read: true,
     };
     // Only prepend if it's earlier than (or same as) the first real message
@@ -157,8 +229,152 @@ export default function Messages() {
     setMessages([...mockMessages]); // sync from source of truth to avoid double-append
   };
 
+  const handleSendBookmark = (bookmark: { title: string; url: string }, message?: string) => {
+    if (!selectedUser) return;
+
+    const newMessage: Message = {
+      id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      senderId: currentUser.id,
+      receiverId: selectedUser.id,
+      content: message || '',
+      timestamp: new Date(),
+      read: false,
+      bookmark,
+    };
+
+    mockMessages.push(newMessage);
+    persistMockData();
+    setMessages([...mockMessages]);
+  };
+
+  const handleAddBookmark = (title: string, url: string) => {
+    mockTherapistBookmarks.push({
+      id: `bk-${Date.now()}`,
+      therapistId: currentUser.id,
+      title,
+      url,
+      createdAt: new Date(),
+    });
+    persistMockData();
+    setBookmarkTick((t) => t + 1);
+    toast.success('Bookmark saved');
+  };
+
+  const handleDeleteBookmark = (id: string) => {
+    const idx = mockTherapistBookmarks.findIndex((b) => b.id === id);
+    if (idx !== -1) {
+      mockTherapistBookmarks.splice(idx, 1);
+      persistMockData();
+      setBookmarkTick((t) => t + 1);
+      toast('Bookmark removed');
+    }
+  };
+
+  // Current therapist's bookmarks (filtered by therapist id)
+  const currentBookmarks = mockTherapistBookmarks.filter(
+    (b) => b.id && (bookmarkTick >= 0) && b.therapistId === currentUser.id
+  );
+
+  const handleApproveSession = (sessionId: string, messageId: string) => {
+    // Update the original request message status
+    const requestMsg = mockMessages.find(m => m.id === messageId);
+    if (requestMsg?.sessionRequest) {
+      requestMsg.sessionRequest.status = 'approved';
+    }
+
+    // Send an approval message to the client with payment link
+    const approvalMessage: Message = {
+      id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      senderId: currentUser.id,
+      receiverId: selectedUser!.id,
+      content: 'Your session request has been approved! Please complete payment to confirm your booking.',
+      timestamp: new Date(),
+      read: false,
+      sessionRequest: requestMsg?.sessionRequest ? {
+        ...requestMsg.sessionRequest,
+        status: 'approved',
+      } : undefined,
+    };
+    mockMessages.push(approvalMessage);
+    persistMockData();
+    setMessages([...mockMessages]);
+    toast.success('Session approved — payment link sent to client');
+  };
+
+  const handleDeclineSession = (sessionId: string, messageId: string) => {
+    // Update the original request message status
+    const requestMsg = mockMessages.find(m => m.id === messageId);
+    if (requestMsg?.sessionRequest) {
+      requestMsg.sessionRequest.status = 'declined';
+    }
+
+    // Remove the session from mockVideoSessions
+    const sessionIdx = mockVideoSessions.findIndex(s => s.id === sessionId);
+    if (sessionIdx !== -1) {
+      mockVideoSessions.splice(sessionIdx, 1);
+    }
+
+    // Send a decline message to the client
+    const declineMessage: Message = {
+      id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      senderId: currentUser.id,
+      receiverId: selectedUser!.id,
+      content: 'Unfortunately I\'m unable to accommodate this session at the requested time. Please feel free to choose another available slot.',
+      timestamp: new Date(),
+      read: false,
+      sessionRequest: requestMsg?.sessionRequest ? {
+        ...requestMsg.sessionRequest,
+        status: 'declined',
+      } : undefined,
+    };
+    mockMessages.push(declineMessage);
+    persistMockData();
+    setMessages([...mockMessages]);
+    toast.success('Session declined — client has been notified');
+  };
+
+  const handlePaySession = (sessionId: string, messageId: string) => {
+    // Update the approval message status to paid
+    const approvalMsg = mockMessages.find(m => m.id === messageId);
+    if (approvalMsg?.sessionRequest) {
+      approvalMsg.sessionRequest.status = 'paid';
+    }
+
+    // Also update any other messages with the same sessionId
+    mockMessages.forEach(m => {
+      if (m.sessionRequest?.sessionId === sessionId) {
+        m.sessionRequest.status = 'paid';
+      }
+    });
+
+    // Update the session: mark as paid and remove requiresApproval
+    const session = mockVideoSessions.find(s => s.id === sessionId);
+    if (session) {
+      session.isPaid = true;
+      session.requiresApproval = undefined;
+    }
+
+    // Send a confirmation message to the therapist
+    const confirmMessage: Message = {
+      id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      senderId: currentUser.id,
+      receiverId: selectedUser!.id,
+      content: 'Payment completed! Session is now confirmed.',
+      timestamp: new Date(),
+      read: false,
+      sessionRequest: approvalMsg?.sessionRequest ? {
+        ...approvalMsg.sessionRequest,
+        status: 'paid',
+      } : undefined,
+    };
+    mockMessages.push(confirmMessage);
+    persistMockData();
+    setMessages([...mockMessages]);
+    toast.success('Payment successful — session confirmed!');
+  };
+
   const handleBack = () => {
-    navigate(`${isTherapistMode ? '/t' : ''}/messages`);
+    navigate(`${isTherapistMode ? '/t' : '/c'}/messages`);
   };
 
   const formatLastMessageTime = (date: Date) => {
@@ -191,7 +407,15 @@ export default function Messages() {
             isMobile
             connectionStatus={selectedConnectionStatus}
             onAcceptConnection={handleAcceptConnection}
-            onUserClick={isTherapistMode ? () => navigate(`/t/clients/${selectedUser.id}`) : undefined}
+            onUserClick={isTherapistMode ? () => navigate(isSelectedUserPeerTherapist ? `/t/therapist/${selectedUser.id}` : `/t/clients/${selectedUser.id}`) : undefined}
+            isTherapistMode={isTherapistMode}
+            onSendBookmark={isTherapistMode ? handleSendBookmark : undefined}
+            bookmarks={isTherapistMode ? currentBookmarks : undefined}
+            onAddBookmark={isTherapistMode ? handleAddBookmark : undefined}
+            onDeleteBookmark={isTherapistMode ? handleDeleteBookmark : undefined}
+            onApproveSession={isTherapistMode ? handleApproveSession : undefined}
+            onDeclineSession={isTherapistMode ? handleDeclineSession : undefined}
+            onPaySession={!isTherapistMode ? handlePaySession : undefined}
           />
         </div>
       </Layout>
@@ -237,7 +461,7 @@ export default function Messages() {
                 {filteredConversations.map(({ user, lastMessage, unreadCount }) => (
                   <button
                     key={user.id}
-                    onClick={() => navigate(`${isTherapistMode ? '/t' : ''}/messages/${user.id}`)}
+                    onClick={() => navigate(`${isTherapistMode ? '/t' : '/c'}/messages/${user.id}`)}
                     className="w-full px-4 py-3 hover:bg-muted active:bg-muted/80 transition-colors text-left"
                   >
                     <div className="flex gap-3 items-center">
@@ -267,7 +491,9 @@ export default function Messages() {
                         {lastMessage && (
                           <p className={`text-sm truncate ${unreadCount > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
                             {lastMessage.senderId === currentUser.id ? 'You: ' : ''}
-                            {lastMessage.content}
+                            {lastMessage.bookmark && !lastMessage.content
+                              ? `Shared: ${lastMessage.bookmark.title}`
+                              : lastMessage.content}
                           </p>
                         )}
                       </div>
@@ -316,7 +542,7 @@ export default function Messages() {
                   {filteredConversations.map(({ user, lastMessage, unreadCount }) => (
                     <button
                       key={user.id}
-                      onClick={() => navigate(`${isTherapistMode ? '/t' : ''}/messages/${user.id}`)}
+                      onClick={() => navigate(`${isTherapistMode ? '/t' : '/c'}/messages/${user.id}`)}
                       className={`w-full p-4 border-b hover:bg-muted transition-colors text-left ${
                         userId === user.id ? 'bg-muted' : ''
                       }`}
@@ -339,7 +565,9 @@ export default function Messages() {
                           {lastMessage && (
                             <p className="text-sm text-muted-foreground truncate">
                               {lastMessage.senderId === currentUser.id ? 'You: ' : ''}
-                              {lastMessage.content}
+                              {lastMessage.bookmark && !lastMessage.content
+                                ? `Shared: ${lastMessage.bookmark.title}`
+                                : lastMessage.content}
                             </p>
                           )}
                           {unreadCount > 0 && (
@@ -368,7 +596,15 @@ export default function Messages() {
                 onSendMessage={handleSendMessage}
                 onAcceptConnection={handleAcceptConnection}
                 connectionStatus={selectedConnectionStatus}
-                onUserClick={isTherapistMode ? () => navigate(`/t/clients/${selectedUser.id}`) : undefined}
+                onUserClick={isTherapistMode ? () => navigate(isSelectedUserPeerTherapist ? `/t/therapist/${selectedUser.id}` : `/t/clients/${selectedUser.id}`) : undefined}
+                isTherapistMode={isTherapistMode}
+                onSendBookmark={isTherapistMode ? handleSendBookmark : undefined}
+                bookmarks={isTherapistMode ? currentBookmarks : undefined}
+                onAddBookmark={isTherapistMode ? handleAddBookmark : undefined}
+                onDeleteBookmark={isTherapistMode ? handleDeleteBookmark : undefined}
+                onApproveSession={isTherapistMode ? handleApproveSession : undefined}
+                onDeclineSession={isTherapistMode ? handleDeclineSession : undefined}
+                onPaySession={!isTherapistMode ? handlePaySession : undefined}
               />
             ) : (
               <div className="flex items-center justify-center h-full">

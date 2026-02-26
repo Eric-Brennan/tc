@@ -6,13 +6,18 @@ import {
   mockCurrentClient,
   mockConnections,
   mockTherapists,
+  mockCurrentTherapist,
+  mockTherapistJournalEntries,
+  mockSupervisionConnections,
   JournalEntry,
+  TherapistJournalEntry,
   MoodRating,
   PhysicalRating,
   SleepQuality,
   AnxietyLevel,
   StressLevel
 } from "../data/mockData";
+import { persistMockData } from "../data/devPersistence";
 import Layout from "../components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -34,9 +39,13 @@ import {
   X,
   ChevronDown,
   Check,
-  Users
+  Users,
+  Eye,
+  EyeOff,
+  Shield
 } from "lucide-react";
 import { useIsMobileView } from "../hooks/useIsMobileView";
+import { useProfileMode } from "../contexts/ProfileModeContext";
 
 // Helper: get connected therapists
 function getConnectedTherapists() {
@@ -163,6 +172,26 @@ function TherapistMultiSelect({
 export default function Journal() {
   const navigate = useNavigate();
   const isMobile = useIsMobileView();
+  const { isClientMode, clientModeUser } = useProfileMode();
+
+  // ── Client-mode: show therapist's own journal entries ──────────
+  const [therapistEntries, setTherapistEntries] = useState<TherapistJournalEntry[]>(
+    () => mockTherapistJournalEntries.filter(e => e.therapistId === mockCurrentTherapist.id)
+  );
+  const [showTherapistEntryDialog, setShowTherapistEntryDialog] = useState(false);
+  const [therapistFormMood, setTherapistFormMood] = useState<number>(5);
+  const [therapistFormThoughts, setTherapistFormThoughts] = useState('');
+  const [therapistFormShared, setTherapistFormShared] = useState(false);
+
+  // Supervisor for the current therapist (if any)
+  const supervisorConnection = mockSupervisionConnections.find(
+    c => c.superviseeId === mockCurrentTherapist.id && c.status === 'accepted'
+  );
+  const supervisor = supervisorConnection
+    ? mockTherapists.find(t => t.id === supervisorConnection.supervisorId)
+    : null;
+
+  // ── Regular client mode state ──────────────────────────────────
   const [entries, setEntries] = useState<JournalEntry[]>(
     mockJournalEntries.filter(e => e.clientId === mockCurrentClient.id)
   );
@@ -188,7 +217,9 @@ export default function Journal() {
   });
 
   const today = startOfDay(new Date());
-  const hasEntryToday = entries.some(entry => isSameDay(entry.date, today));
+  const hasEntryToday = isClientMode
+    ? therapistEntries.some(entry => isSameDay(entry.date, today))
+    : entries.some(entry => isSameDay(entry.date, today));
 
   const sleepOptions: { value: SleepQuality; label: string }[] = [
     { value: 'excellent', label: 'Excellent' },
@@ -278,6 +309,268 @@ export default function Journal() {
     return 'text-foreground';
   };
 
+  // ── Client-mode handlers ───────────────────────────────────────
+  const handleOpenTherapistEntry = () => {
+    setTherapistFormMood(5);
+    setTherapistFormThoughts('');
+    setTherapistFormShared(false);
+    setShowTherapistEntryDialog(true);
+  };
+
+  const handleSaveTherapistEntry = () => {
+    const newEntry: TherapistJournalEntry = {
+      id: `tj${Date.now()}`,
+      therapistId: mockCurrentTherapist.id,
+      date: today,
+      mood: therapistFormMood,
+      thoughtsAndFeelings: therapistFormThoughts,
+      sharedWithSupervisor: therapistFormShared,
+      createdAt: new Date(),
+    };
+    // Push to the global mock array & persist
+    mockTherapistJournalEntries.push(newEntry);
+    persistMockData();
+    setTherapistEntries(prev => [newEntry, ...prev]);
+    setShowTherapistEntryDialog(false);
+  };
+
+  const handleToggleSupervisorSharing = (entryId: string) => {
+    const entry = mockTherapistJournalEntries.find(e => e.id === entryId);
+    if (entry) {
+      entry.sharedWithSupervisor = !entry.sharedWithSupervisor;
+      persistMockData();
+    }
+    setTherapistEntries(prev =>
+      prev.map(e => e.id === entryId ? { ...e, sharedWithSupervisor: !e.sharedWithSupervisor } : e)
+    );
+  };
+
+  // ── Client-mode render ─────────────────────────────────────────
+  if (isClientMode) {
+    return (
+      <Layout
+        userType="client"
+        userName={mockCurrentClient.name}
+        userAvatar={mockCurrentClient.avatar}
+      >
+        <div className="h-full flex flex-col">
+          <div className="flex-1 container mx-auto px-4 py-8 overflow-auto">
+            <div className="max-w-4xl mx-auto space-y-6">
+              {/* Header */}
+              <div className={isMobile ? '' : 'flex items-center justify-between'}>
+                <div>
+                  <h1 className="text-3xl font-bold flex items-center gap-3">
+                    <BookOpen className="w-8 h-8" />
+                    My Journal
+                  </h1>
+                  <p className="text-muted-foreground mt-1">
+                    Track your wellbeing and reflect on your practice
+                  </p>
+                </div>
+                <Button
+                  onClick={handleOpenTherapistEntry}
+                  disabled={hasEntryToday}
+                  size="lg"
+                  className={isMobile ? 'w-full mt-4' : ''}
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  {hasEntryToday ? 'Entry Created Today' : 'New Entry'}
+                </Button>
+              </div>
+
+              {/* Entries List */}
+              <div className="space-y-4">
+                {therapistEntries.length === 0 ? (
+                  <Card>
+                    <CardContent className="py-12 text-center">
+                      <BookOpen className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                      <h3 className="text-xl font-semibold mb-2">Start Your Journey</h3>
+                      <p className="text-muted-foreground mb-4">
+                        Begin tracking your wellbeing by creating your first journal entry
+                      </p>
+                      <Button onClick={handleOpenTherapistEntry}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create First Entry
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  [...therapistEntries]
+                    .sort((a, b) => b.date.getTime() - a.date.getTime())
+                    .map(entry => (
+                      <Card key={entry.id} className="hover:shadow-md transition-shadow">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
+                              <CalendarIcon className="w-5 h-5 text-muted-foreground" />
+                              <div>
+                                <CardTitle className="text-lg">
+                                  {format(entry.date, 'EEEE, MMMM d, yyyy')}
+                                </CardTitle>
+                                <CardDescription>
+                                  {format(entry.createdAt, 'h:mm a')}
+                                </CardDescription>
+                              </div>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          {/* Mood */}
+                          <div className="flex items-center gap-3">
+                            <Brain className="w-5 h-5 text-muted-foreground" />
+                            <div>
+                              <p className="text-sm text-muted-foreground">Mood</p>
+                              <p className={`text-2xl font-bold ${getRatingColor(entry.mood)}`}>{entry.mood}/10</p>
+                            </div>
+                          </div>
+
+                          {/* Thoughts */}
+                          <div>
+                            <p className="text-sm font-medium text-muted-foreground mb-1">Reflections:</p>
+                            <p className="text-sm whitespace-pre-wrap">{entry.thoughtsAndFeelings}</p>
+                          </div>
+
+                          {/* Shared with Supervisor */}
+                          <div className="pt-3 border-t">
+                            <Label className="text-sm text-muted-foreground mb-2 block">Shared with</Label>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleSupervisorSharing(entry.id)}
+                              className={`w-full flex items-center gap-2 p-3 border rounded-lg text-left transition-colors hover:bg-accent`}
+                            >
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                {entry.sharedWithSupervisor && supervisor ? (
+                                  <>
+                                    <Shield className="w-4 h-4 text-primary shrink-0" />
+                                    <div className="flex flex-wrap gap-1">
+                                      <Badge variant="secondary" className="text-xs gap-1">
+                                        <img src={supervisor.avatar} alt="" className="w-3.5 h-3.5 rounded-full" />
+                                        {supervisor.name}
+                                      </Badge>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
+                                    <span className="text-sm text-muted-foreground">
+                                      Private — only you can see this
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                              {supervisor && (
+                                entry.sharedWithSupervisor
+                                  ? <Eye className="w-4 h-4 text-primary shrink-0" />
+                                  : <EyeOff className="w-4 h-4 text-muted-foreground shrink-0" />
+                              )}
+                            </button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* New Therapist Entry Dialog */}
+        <Dialog open={showTherapistEntryDialog} onOpenChange={setShowTherapistEntryDialog}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>New Journal Entry</DialogTitle>
+              <DialogDescription>
+                Reflect on your day for {format(today, 'MMMM d, yyyy')}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-6 py-4">
+              {/* Mood Selection */}
+              <div>
+                <Label className="text-base font-semibold mb-3 block">
+                  How are you feeling? (1 = Low, 10 = High)
+                </Label>
+                <div className="grid grid-cols-10 gap-2">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(rating => (
+                    <button
+                      key={rating}
+                      onClick={() => setTherapistFormMood(rating)}
+                      className={`p-3 border rounded-lg text-center transition-all hover:border-primary ${
+                        therapistFormMood === rating ? 'border-primary bg-primary text-primary-foreground' : ''
+                      }`}
+                    >
+                      <div className="text-lg font-bold">{rating}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Thoughts */}
+              <div>
+                <Label htmlFor="therapistThoughts" className="text-base font-semibold mb-2 block">
+                  Thoughts & Reflections
+                </Label>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Write about your day, feelings, or anything on your mind
+                </p>
+                <Textarea
+                  id="therapistThoughts"
+                  placeholder="Today I felt..."
+                  value={therapistFormThoughts}
+                  onChange={(e) => setTherapistFormThoughts(e.target.value)}
+                  rows={6}
+                  className="resize-none"
+                />
+              </div>
+
+              {/* Share with Supervisor */}
+              {supervisor && (
+                <div>
+                  <Label className="text-base font-semibold mb-2 block">Share with supervisor</Label>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Choose whether your supervisor can view this entry.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setTherapistFormShared(!therapistFormShared)}
+                    className={`w-full flex items-center gap-3 p-3 border rounded-lg text-left transition-colors hover:bg-accent ${
+                      therapistFormShared ? 'border-primary/30 bg-primary/5' : ''
+                    }`}
+                  >
+                    <img
+                      src={supervisor.avatar}
+                      alt={supervisor.name}
+                      className="w-8 h-8 rounded-full object-cover shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{supervisor.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{supervisor.credentials}</p>
+                    </div>
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+                      therapistFormShared ? 'bg-primary border-primary' : 'border-muted-foreground/30'
+                    }`}>
+                      {therapistFormShared && <Check className="w-3 h-3 text-primary-foreground" />}
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowTherapistEntryDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveTherapistEntry}>
+                Save Entry
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </Layout>
+    );
+  }
+
+  // ── Regular client render ──────────────────────────────────────
   return (
     <Layout
       userType="client"

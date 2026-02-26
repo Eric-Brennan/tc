@@ -1,100 +1,79 @@
-import { 
-  Title, 
-  Gender, 
-  Orientation, 
-  TherapistType, 
-  AreaOfFocus, 
-  ClinicalApproach,
-  GoverningBody,
-  MembershipLevel,
+// ── Shared ──────────────────────────────────────────────────────
+export {
+  // Enums
+  Title,
+  Gender,
+  Orientation,
   SpokenLanguageCode,
   LanguageProficiency,
   ImageType,
-  SessionType
-} from "./enums";
+  SessionType,
+  AreaOfFocus,
+} from "./shared";
 
-export interface ContactDetails {
-  email: string;
-  mobileNumber: string;
-  street: string;
-  city: string;
-  postCode: string;
-  country?: string;
-}
+export type {
+  // Types & Interfaces
+  Modality,
+  UserType,
+  User,
+  ThemeSettings,
+  SessionRate,
+  ContactDetails,
+  ProfileLink,
+  SpokenLanguage,
+  Education,
+  Image,
+  ConnectionRequest,
+  SessionRequestData,
+  Message,
+  VideoSession,
+  ProBonoToken,
+} from "./shared";
 
-export interface ProfileLink {
-  id: string;
-  title: string;
-  url: string;
-}
+// ── Therapist ───────────────────────────────────────────────────
+export {
+  // Enums
+  TherapistType,
+  ClinicalApproach,
+  GoverningBody,
+  MembershipLevel,
+} from "./therapist";
 
-export interface SpokenLanguage {
-  id: string;
-  languageCode: SpokenLanguageCode;
-  proficiency: LanguageProficiency;
-}
+export type {
+  // Interfaces
+  Therapist,
+  TherapistProfile,
+  GoverningBodyMembership,
+  TherapistBookmark,
+  Post,
+  SessionNote,
+  // Scheduling
+  AvailabilityWindow,
+  Workshop,
+  CoursePackage,
+  // Supervision
+  SupervisionConnection,
+  SupervisionSession,
+  // Journal & CPD
+  TherapistJournalEntry,
+  CpdEntry,
+} from "./therapist";
 
-export interface Education {
-  id: string;
-  institution: string;
-  degree: string;
-  fieldOfStudy: string;
-  yearCompleted: number;
-}
-
-export interface GoverningBodyMembership {
-  id: string;
-  governingBody: GoverningBody;
-  membershipLevel: MembershipLevel;
-  membershipNumber: string;
-  yearObtained?: number;
-}
-
-export interface Image {
-  id: string;
-  imageType: ImageType;
-  url: string;
-  altText?: string;
-}
-
-export interface SessionRate {
-  id: string;
-  title: string;
-  modality: 'video' | 'inPerson' | 'text' | 'phoneCall';
-  duration: number;
-  price: number;
-}
-
-export interface TherapistProfile {
-  therapistProfileId: number;
-  userId: number;
-  title: Title;
-  firstName: string;
-  middleName: string | null;
-  lastName: string;
-  displayName: string | null;
-  profileImages: Image[];
-  dateOfBirth: Date | null;
-  gender: Gender;
-  orientation: Orientation;
-  contactDetails: ContactDetails | null;
-  profileLinks: ProfileLink[];
-  isInPerson: boolean;
-  isVideo: boolean;
-  isPhone: boolean;
-  isLiveChat: boolean;
-  isMessaging: boolean;
-  willDoCouples: boolean;
-  bio: string | null;
-  yearsOfExperience: number;
-  spokenLanguages: SpokenLanguage[];
-  educations: Education[];
-  therapistTypes: TherapistType[];
-  sessionTypes: SessionType[];
-  areasOfFocus: AreaOfFocus[];
-  clinicalApproaches: ClinicalApproach[];
-  governingBodyMemberships: GoverningBodyMembership[];
-  sessionRates: SessionRate[];
-  createdAt: Date;
-  updatedAt: Date;
-}
+// ── Client ──────────────────────────────────────────────────────
+export type {
+  Client,
+  ClientCourseBooking,
+  ClientNote,
+  // Journal
+  MoodRating,
+  PhysicalRating,
+  SleepQuality,
+  AnxietyLevel,
+  StressLevel,
+  JournalEntry,
+  // Assessment
+  AssessmentFrequency,
+  PHQ9Response,
+  GAD7Response,
+  Assessment,
+} from "./client";

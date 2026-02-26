@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { UserPlus, UserCheck } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 
 interface SuggestedTherapistCardProps {
   therapist: Therapist;
@@ -19,6 +19,8 @@ export default function SuggestedTherapistCard({
 }: SuggestedTherapistCardProps) {
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const navigate = useNavigate();
+  const location = useLocation();
+  const routePrefix = location.pathname.startsWith('/t') ? '/t' : '/c';
 
   const handleToggleFollow = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card click
@@ -30,7 +32,7 @@ export default function SuggestedTherapistCard({
   return (
     <Card 
       className="hover:shadow-md transition-shadow cursor-pointer"
-      onClick={() => navigate(`/therapist/${therapist.id}`)}
+      onClick={() => navigate(`${routePrefix}/therapist/${therapist.id}`)}
     >
       <CardContent className="p-4">
         <div className="space-y-3">

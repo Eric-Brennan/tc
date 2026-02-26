@@ -542,10 +542,10 @@ export function InSessionAssessment({ open, onClose, clientName, clientId, useAb
                       The recording and protection of client data, under GDPR and ICO regulations, remains the sole responsibility of the therapist entrusted with this information.
                     </p>
                     <p>
-                      As such, it is not permitted to hold sensitive client data in a therapist's notes within the BestHelp platform.
+                      As such, it is not permitted to hold sensitive client data in a therapist's notes within the Therapy Connect platform.
                     </p>
                     <p>
-                      BestHelp is not responsible for any data breaches that occur as a result of a therapist maintaining client data within their BestHelp notes.
+                      Therapy Connect is not responsible for any data breaches that occur as a result of a therapist maintaining client data within their Therapy Connect notes.
                     </p>
                     <p>
                       It is permitted to maintain emergency contact information for the client's GP/Doctor for risk and emergency situations.

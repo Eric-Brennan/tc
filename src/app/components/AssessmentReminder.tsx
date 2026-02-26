@@ -44,7 +44,7 @@ export function AssessmentReminder({ clientId }: AssessmentReminderProps) {
           }
         </div>
       </div>
-      <Button onClick={() => navigate('/assessments')} size="sm" className="col-span-2 w-full sm:w-auto mt-2">
+      <Button onClick={() => navigate('/c/assessments')} size="sm" className="col-span-2 w-full sm:w-auto mt-2">
         Complete Assessment
       </Button>
     </Alert>

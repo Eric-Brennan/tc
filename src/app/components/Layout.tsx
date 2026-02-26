@@ -2,6 +2,8 @@ import { ReactNode } from "react";
 import Navigation from "./Navigation";
 import UserTypeToggle from "./UserTypeToggle";
 import MobileViewToggle from "./MobileViewToggle";
+import ClientModeBanner from "./ClientModeBanner";
+import { useProfileMode } from "../contexts/ProfileModeContext";
 
 interface LayoutProps {
   children: ReactNode;
@@ -18,14 +20,27 @@ export default function Layout({
   userAvatar,
   showNavigation = true 
 }: LayoutProps) {
+  const { isClientMode, clientModeUser } = useProfileMode();
+
+  // When a therapist is in client mode and viewing client pages, use their therapist identity
+  const effectiveUserName = (userType === "client" && isClientMode && clientModeUser) 
+    ? clientModeUser.name 
+    : userName;
+  const effectiveUserAvatar = (userType === "client" && isClientMode && clientModeUser) 
+    ? clientModeUser.avatar 
+    : userAvatar;
+
   return (
     <div className="h-screen flex flex-col bg-background">
       {showNavigation && (
-        <Navigation 
-          userType={userType} 
-          userName={userName} 
-          userAvatar={userAvatar} 
-        />
+        <>
+          <Navigation 
+            userType={userType} 
+            userName={effectiveUserName} 
+            userAvatar={effectiveUserAvatar} 
+          />
+          {userType === "client" && <ClientModeBanner />}
+        </>
       )}
       <main className="flex-1 overflow-auto">
         {children}

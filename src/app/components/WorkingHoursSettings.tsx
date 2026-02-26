@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React from "react";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { Label } from "./ui/label";
@@ -53,8 +53,8 @@ const modalityIcons: Record<SessionModality, React.ReactNode> = {
 };
 
 export default function WorkingHoursSettings({ trigger }: WorkingHoursSettingsProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [workingHours, setWorkingHours] = useState<WorkingHours>(defaultWorkingHours);
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [workingHours, setWorkingHours] = React.useState<WorkingHours>(defaultWorkingHours);
 
   const sessionRates = mockCurrentTherapist.sessionRates || [];
 

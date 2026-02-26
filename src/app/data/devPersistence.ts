@@ -56,6 +56,13 @@ interface Snapshot {
   messages: unknown[];
   sessionNotes: unknown[];
   courseBookings?: unknown[];
+  therapistJournalEntries?: unknown[];
+  cpdEntries?: unknown[];
+  supervisionConnections?: unknown[];
+  supervisionSessions?: unknown[];
+  therapistBookmarks?: unknown[];
+  videoSessions?: unknown[];
+  therapistAvailability?: Record<string, unknown[]>; // therapistId → availabilityWindows
 }
 
 // Cached array references — set once during hydrateMockData(),
@@ -65,6 +72,13 @@ let _proBonoTokens: unknown[] | null = null;
 let _messages: unknown[] | null = null;
 let _sessionNotes: unknown[] | null = null;
 let _courseBookings: unknown[] | null = null;
+let _therapistJournalEntries: unknown[] | null = null;
+let _cpdEntries: unknown[] | null = null;
+let _supervisionConnections: unknown[] | null = null;
+let _supervisionSessions: unknown[] | null = null;
+let _therapistBookmarks: unknown[] | null = null;
+let _videoSessions: unknown[] | null = null;
+let _therapists: unknown[] | null = null;
 
 /**
  * Persist current in-memory mock data to localStorage.
@@ -79,10 +93,29 @@ export function persistMockData(): void {
     messages: _messages!,
     sessionNotes: _sessionNotes!,
     courseBookings: _courseBookings!,
+    therapistJournalEntries: _therapistJournalEntries!,
+    cpdEntries: _cpdEntries!,
+    supervisionConnections: _supervisionConnections!,
+    supervisionSessions: _supervisionSessions!,
+    therapistBookmarks: _therapistBookmarks!,
+    videoSessions: _videoSessions!,
+    therapistAvailability: _therapists?.reduce(
+      (acc, therapist) => {
+        const { id, availabilityWindows } = therapist as {
+          id: string;
+          availabilityWindows?: unknown[];
+        };
+        if (availabilityWindows) acc[id] = availabilityWindows;
+        return acc;
+      },
+      {} as Record<string, unknown[]>
+    ),
   };
 
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot, replacer));
+    // Dispatch a custom event to notify components that data has changed
+    window.dispatchEvent(new CustomEvent('mockDataUpdated'));
   } catch {
     // Storage full or unavailable — silently ignore.
   }
@@ -100,7 +133,14 @@ export function hydrateMockData(
   proBonoTokens: unknown[],
   messages: unknown[],
   sessionNotes: unknown[],
-  courseBookings: unknown[]
+  courseBookings: unknown[],
+  therapistJournalEntries: unknown[] = [],
+  cpdEntries: unknown[] = [],
+  supervisionConnections: unknown[] = [],
+  supervisionSessions: unknown[] = [],
+  therapistBookmarks: unknown[] = [],
+  videoSessions: unknown[] = [],
+  therapists: unknown[] = []
 ): void {
   // Cache references for persistMockData()
   _connections = connections;
@@ -108,6 +148,13 @@ export function hydrateMockData(
   _messages = messages;
   _sessionNotes = sessionNotes;
   _courseBookings = courseBookings;
+  _therapistJournalEntries = therapistJournalEntries;
+  _cpdEntries = cpdEntries;
+  _supervisionConnections = supervisionConnections;
+  _supervisionSessions = supervisionSessions;
+  _therapistBookmarks = therapistBookmarks;
+  _videoSessions = videoSessions;
+  _therapists = therapists;
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -135,6 +182,39 @@ export function hydrateMockData(
       courseBookings.length = 0;
       courseBookings.push(...snapshot.courseBookings);
     }
+    if (snapshot.therapistJournalEntries) {
+      therapistJournalEntries.length = 0;
+      therapistJournalEntries.push(...snapshot.therapistJournalEntries);
+    }
+    if (snapshot.cpdEntries) {
+      cpdEntries.length = 0;
+      cpdEntries.push(...snapshot.cpdEntries);
+    }
+    if (snapshot.supervisionConnections) {
+      supervisionConnections.length = 0;
+      supervisionConnections.push(...snapshot.supervisionConnections);
+    }
+    if (snapshot.supervisionSessions) {
+      supervisionSessions.length = 0;
+      supervisionSessions.push(...snapshot.supervisionSessions);
+    }
+    if (snapshot.therapistBookmarks) {
+      therapistBookmarks.length = 0;
+      therapistBookmarks.push(...snapshot.therapistBookmarks);
+    }
+    if (snapshot.videoSessions) {
+      videoSessions.length = 0;
+      videoSessions.push(...snapshot.videoSessions);
+    }
+    if (snapshot.therapistAvailability) {
+      therapists.forEach((therapist) => {
+        const { id } = therapist as { id: string };
+        if (snapshot.therapistAvailability?.[id]) {
+          (therapist as { availabilityWindows: unknown[] }).availabilityWindows =
+            snapshot.therapistAvailability[id];
+        }
+      });
+    }
   } catch {
     // Corrupt data — ignore and let defaults stand.
   }
@@ -145,4 +225,33 @@ export function hydrateMockData(
  */
 export function resetMockData(): void {
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem('besthelp_theme_settings');
+}
+
+// ---- Theme Settings Persistence ---------------------------------------------
+
+const THEME_STORAGE_KEY = 'besthelp_theme_settings';
+
+/**
+ * Persist theme settings to localStorage
+ */
+export function persistThemeSettings(themeSettings: Record<string, string>): void {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(themeSettings));
+  } catch {
+    // Storage full or unavailable — silently ignore.
+  }
+}
+
+/**
+ * Hydrate theme settings from localStorage
+ */
+export function hydrateThemeSettings(): Record<string, string> | null {
+  try {
+    const raw = localStorage.getItem(THEME_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }

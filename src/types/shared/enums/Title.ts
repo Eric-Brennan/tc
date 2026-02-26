@@ -1,0 +1,16 @@
+export enum Title {
+  NotSpecified = 0,
+  Mr = 1,
+  Mrs = 2,
+  Miss = 3,
+  Ms = 4,
+  Mx = 5,
+  Dr = 6,
+  Prof = 7,
+  Rev = 8,
+  Sir = 9,
+  Lady = 10,
+  Lord = 11,
+  Dame = 12,
+  Other = 13,
+}

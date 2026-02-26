@@ -1,9 +1,9 @@
+import { useNavigate, useLocation } from "react-router";
 import { Therapist } from "../data/mockData";
 import { Card, CardContent, CardFooter, CardHeader } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { MapPin, PoundSterling, Clock, GraduationCap } from "lucide-react";
-import { useNavigate } from "react-router";
 
 interface TherapistCardProps {
   therapist: Therapist;
@@ -11,6 +11,8 @@ interface TherapistCardProps {
 
 export default function TherapistCard({ therapist }: TherapistCardProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const routePrefix = location.pathname.startsWith('/t') ? '/t' : '/c';
 
   return (
     <Card className="hover:shadow-lg transition-shadow">
@@ -72,7 +74,7 @@ export default function TherapistCard({ therapist }: TherapistCardProps) {
       <CardFooter className="p-4 md:p-6 pt-0 md:pt-0">
         <Button 
           className="w-full"
-          onClick={() => navigate(`/therapist/${therapist.id}`)}
+          onClick={() => navigate(`${routePrefix}/therapist/${therapist.id}`)}
         >
           View Profile
         </Button>

@@ -1,0 +1,32 @@
+export enum ClinicalApproach {
+  ABT = 0, // Attachment-Based Therapy
+  ACT = 1, // Acceptance and Commitment Therapy
+  AT = 2, // Art Therapy
+  BT = 3, // Behavioral Therapy
+  CBT = 4, // Cognitive Behavioral Therapy
+  CCT = 5, // Client-Centered Therapy
+  DBT = 6, // Dialectical Behavior Therapy
+  EFT = 7, // Emotionally Focused Therapy
+  EMDR = 8, // Eye Movement Desensitization and Reprocessing
+  EXT = 9, // Existential Therapy
+  GMM = 10, // Gottman
+  GT = 11, // Gestalt Therapy
+  HT = 12, // Humanistic Therapy
+  HYP = 13, // Hypnotherapy
+  IFST = 14, // Internal Family Systems Therapy
+  IPT = 15, // Interpersonal Therapy
+  IRT = 16, // Imago Relationship Therapy
+  IT = 17, // Integrative Therapy
+  JT = 18, // Jungian Therapy
+  MIT = 19, // Mindfulness-Based Interventions
+  MOI = 20, // Motivational Interviewing
+  NAT = 21, // Narrative Therapy
+  PDT = 22, // Psychodynamic Therapy
+  PSA = 23, // Psychoanalytic Therapy
+  PT = 24, // Play Therapy
+  RT = 25, // Reality Therapy
+  SFT = 26, // Solution-Focused Therapy
+  SMT = 27, // Somatic Therapy
+  SYT = 28, // Systemic Therapy
+  TFT = 29, // Trauma-Focused Therapy
+}

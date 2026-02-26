@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Layout from "../components/Layout";
-import { mockCurrentTherapist, mockPosts, mockCurrentTherapistExtended } from "../data/mockData";
-import type { SessionRate, CoursePackage } from "../data/mockData";
+import { mockCurrentTherapist, mockPosts, mockCurrentTherapistExtended, mockTherapists } from "../data/mockData";
+import type { SessionRate, CoursePackage, AvailabilityWindow } from "../data/mockData";
 import type { TherapistProfile } from "../../types";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -12,12 +12,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
-import { Plus, Edit, PoundSterling, Clock, Trash2, Camera, MapPin, GraduationCap, Shield, Coffee, Package, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, Edit, PoundSterling, Clock, Trash2, Camera, MapPin, GraduationCap, Shield, Coffee, Package, ToggleLeft, ToggleRight, Bookmark } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import PostCard from "../components/PostCard";
 import AvailabilityCalendar from "../components/AvailabilityCalendar";
 import EditTherapistProfileDialog from "../components/EditTherapistProfileDialog";
+import BookmarkManagerDialog from "../components/BookmarkManagerDialog";
 import { toast } from "sonner";
+import { persistMockData } from "../data/devPersistence";
 import { areaOfFocusLabels, clinicalApproachLabels, governingBodyLabels, membershipLevelLabels } from "../../utils/enumLabels";
 
 type SessionModality = 'video' | 'inPerson' | 'text' | 'phoneCall';
@@ -51,6 +53,7 @@ export default function TherapistProfile() {
     therapistData.coursePackages || []
   );
   const [isCoursesDialogOpen, setIsCoursesDialogOpen] = useState(false);
+  const [isBookmarksDialogOpen, setIsBookmarksDialogOpen] = useState(false);
   const [showAddCourseForm, setShowAddCourseForm] = useState(false);
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [courseToDelete, setCourseToDelete] = useState<CoursePackage | null>(null);
@@ -327,7 +330,11 @@ export default function TherapistProfile() {
               </div>
 
               {/* Action Button - Top Right */}
-              <div className="pt-4 flex justify-end">
+              <div className="pt-4 flex justify-end gap-2">
+                <Button variant="outline" className="gap-2" onClick={() => setIsBookmarksDialogOpen(true)}>
+                  <Bookmark className="w-4 h-4" />
+                  Bookmarks
+                </Button>
                 <Button variant="outline" className="gap-2" onClick={() => setIsEditDialogOpen(true)}>
                   <Edit className="w-4 h-4" />
                   Edit Profile
@@ -932,7 +939,16 @@ export default function TherapistProfile() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">{therapistData.availability}</p>
-                  <AvailabilityCalendar sessionRates={sessionRates} />
+                  <AvailabilityCalendar
+                    sessionRates={sessionRates}
+                    availabilityWindows={mockCurrentTherapist.availabilityWindows}
+                    onSave={(updatedWindows: AvailabilityWindow[]) => {
+                      mockCurrentTherapist.availabilityWindows = updatedWindows;
+                      const t = mockTherapists.find(t => t.id === mockCurrentTherapist.id);
+                      if (t) t.availabilityWindows = updatedWindows;
+                      persistMockData();
+                    }}
+                  />
                 </CardContent>
               </Card>
             </div>
@@ -1069,6 +1085,13 @@ export default function TherapistProfile() {
         onOpenChange={setIsEditDialogOpen}
         profile={extendedProfile}
         onSave={handleSaveExtendedProfile}
+      />
+
+      {/* Bookmark Manager Dialog */}
+      <BookmarkManagerDialog
+        open={isBookmarksDialogOpen}
+        onOpenChange={setIsBookmarksDialogOpen}
+        therapistId={therapistData.id}
       />
     </Layout>
   );
